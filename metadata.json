@@ -1,0 +1,6 @@
+{
+  "name": "DDN Prime News - राष्ट्रीय व बिहार का अग्रणी डिजिटल न्यूज़ नेटवर्क",
+  "description": "DDN Prime News - निष्पक्ष, निर्भीक और सटीक पत्रकारिता। बिहार के सभी 38 जिलों और देश-दुनिया की पल-पल की ताजा खबरें, वीडियो और विशेष ग्राउंड रिपोर्ट।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

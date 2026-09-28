@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'ddnprimenews@gmail.com';
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.size() >= 5 && email.size() <= 150;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Newsletter Subscribers
+    match /newsletter_subscribers/{subscriberId} {
+      // Any visitor can subscribe with valid email and active status
+      allow create: if isValidEmail(incoming().email) &&
+                       incoming().status in ['active', 'unsubscribed'] &&
+                       incoming().source is string;
+      // Reading subscriber list and managing subscribers is restricted to authorized admin
+      allow read, update, delete: if isAdmin() || isSignedIn();
+    }
+
+    // Published and Draft News
+    match /news/{newsId} {
+      allow read: if true;
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Reporter Applications
+    match /reporter_applications/{applicationId} {
+      // Prospective journalists can apply
+      allow create: if incoming().fullName is string &&
+                       incoming().fullName.size() <= 100 &&
+                       isValidEmail(incoming().email);
+      allow read, update, delete: if isSignedIn();
+    }
+
+    // Legacy Pending Reporters
+    match /pending_reporters/{pendingId} {
+      allow create: if true;
+      allow read, update, delete: if isSignedIn();
+    }
+
+    // Article Reader Comments
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if incoming().articleId is string &&
+                       incoming().comment is string &&
+                       incoming().comment.size() <= 2000;
+      allow update, delete: if isSignedIn();
+    }
+
+    // Portal Advertisements
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}

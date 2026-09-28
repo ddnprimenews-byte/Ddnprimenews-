@@ -1,0 +1,207 @@
+{
+  "entities": {
+    "NewsletterSubscriber": {
+      "title": "NewsletterSubscriber",
+      "description": "Represents a user subscribed to daily news bulletins",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Subscriber email address",
+          "maxLength": 150
+        },
+        "status": {
+          "type": "string",
+          "description": "Subscription status",
+          "enum": ["active", "unsubscribed"]
+        },
+        "frequency": {
+          "type": "string",
+          "description": "Bulletin delivery frequency",
+          "maxLength": 50
+        },
+        "district": {
+          "type": "string",
+          "description": "Subscriber's preferred district for regional updates",
+          "maxLength": 100
+        },
+        "language": {
+          "type": "string",
+          "description": "Preferred language for summary",
+          "maxLength": 10
+        },
+        "source": {
+          "type": "string",
+          "description": "Form origin",
+          "maxLength": 50
+        },
+        "subscribedAt": {
+          "type": "string",
+          "description": "ISO timestamp of subscription",
+          "maxLength": 50
+        }
+      },
+      "required": ["email", "status", "subscribedAt"]
+    },
+    "NewsArticle": {
+      "title": "NewsArticle",
+      "description": "Represents an editorial or reporter news story",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Article headline",
+          "maxLength": 300
+        },
+        "category": {
+          "type": "string",
+          "description": "Article topic category",
+          "maxLength": 50
+        },
+        "district": {
+          "type": "string",
+          "description": "Associated district",
+          "maxLength": 100
+        },
+        "content": {
+          "type": "string",
+          "description": "Full text or summary of the article",
+          "maxLength": 20000
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Name of the journalist or reporter",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "description": "Publish status",
+          "enum": ["published", "pending", "rejected", "draft"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Publish timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["title", "category", "content", "status"]
+    },
+    "ReporterApplication": {
+      "title": "ReporterApplication",
+      "description": "Application submitted by aspiring journalists",
+      "type": "object",
+      "properties": {
+        "fullName": {
+          "type": "string",
+          "description": "Applicant full name",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Applicant email address",
+          "maxLength": 150
+        },
+        "mobile": {
+          "type": "string",
+          "description": "Applicant mobile phone number",
+          "maxLength": 20
+        },
+        "district": {
+          "type": "string",
+          "description": "District coverage area",
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "description": "Application review status",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "Submission timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["fullName", "email", "mobile", "district", "status"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User reader comments on published news articles",
+      "type": "object",
+      "properties": {
+        "articleId": {
+          "type": "string",
+          "description": "Target article identifier",
+          "maxLength": 128
+        },
+        "userName": {
+          "type": "string",
+          "description": "Commenter name",
+          "maxLength": 100
+        },
+        "comment": {
+          "type": "string",
+          "description": "User feedback or opinion",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when comment was posted",
+          "maxLength": 50
+        }
+      },
+      "required": ["articleId", "userName", "comment"]
+    },
+    "Advertisement": {
+      "title": "Advertisement",
+      "description": "Sponsor ads displayed across the news portal",
+      "type": "object",
+      "properties": {
+        "clientName": {
+          "type": "string",
+          "description": "Advertiser name",
+          "maxLength": 100
+        },
+        "position": {
+          "type": "string",
+          "description": "Ad slot position",
+          "maxLength": 50
+        },
+        "status": {
+          "type": "string",
+          "description": "Ad active status",
+          "enum": ["active", "inactive"]
+        }
+      },
+      "required": ["clientName", "position", "status"]
+    }
+  },
+  "firestore": {
+    "/newsletter_subscribers/{subscriberId}": {
+      "schema": "NewsletterSubscriber",
+      "description": "Subscribers for the daily morning news summary bulletin"
+    },
+    "/news/{newsId}": {
+      "schema": "NewsArticle",
+      "description": "Published and pending news articles"
+    },
+    "/reporter_applications/{applicationId}": {
+      "schema": "ReporterApplication",
+      "description": "Journalist applications for district coverage"
+    },
+    "/pending_reporters/{pendingId}": {
+      "schema": "ReporterApplication",
+      "description": "Legacy queue for incoming reporter applications"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "User comments and discussion on news articles"
+    },
+    "/advertisements/{adId}": {
+      "schema": "Advertisement",
+      "description": "Commercial ad banners and sponsor slots"
+    }
+  }
+}
