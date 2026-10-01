@@ -17,6 +17,7 @@ export const INITIAL_NEWS: Omit<NewsItem, 'id'>[] = [
     block: 'सदर',
     imageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=1000&auto=format&fit=crop&q=80',
     mediaEmbeds: ['https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    suggestedTags: ['बिहार एक्सप्रेसवे', 'पटना मेट्रो', 'सड़क परिवहन', 'बुनियादी ढांचा', 'बिहार विकास'],
     authorName: 'राजेश कुमार वर्मा',
     authorRole: 'reporter',
     authorDistrict: 'पटना (Patna)',
@@ -30,14 +31,15 @@ export const INITIAL_NEWS: Omit<NewsItem, 'id'>[] = [
     subTitle: 'शाही लीची के संरक्षण और उत्पादन बढ़ाने के लिए किसानों को विशेष तकनीकी प्रशिक्षण',
     summary: 'मुजफ्फरपुर स्थित राष्ट्रीय लीची अनुसंधान केंद्र (NRCL) ने इस वर्ष अधिक टिकाऊ और मीठी लीची की नई प्रजाति तैयार की है, जो 15 दिनों तक ताजी बनी रह सकेगी।',
     content: `मुजफ्फरपुर: उत्तर बिहार की पहचान मानी जाने वाली प्रसिद्ध 'शाही लीची' अब वैश्विक स्तर पर अपनी महक और मिठास और व्यापक स्तर पर बिखेरेगी। मुजफ्फरपुर के मुशहरी स्थित राष्ट्रीय लीची अनुसंधान केंद्र के वैज्ञानिकों ने एक ऐतिहासिक सफलता हासिल की है।
-
+ 
 केंद्र के वरिष्ठ कृषि वैज्ञानिकों के अनुसार, विकसित नई तकनीक से लीची की शेल्फ लाइफ 5 दिन से बढ़कर 15 दिन हो गई है। इससे यूरोपीय और खाड़ी देशों में हवाई व समुद्री मार्ग से निर्यात में होने वाले नुकसान से बचा जा सकेगा। 
-
+ 
 किसानों के लिए अगले माह से विशेष शिविर लगाकर पौधे वितरित किए जाएंगे और कोल्ड स्टोरेज चैन पर 60% तक सरकारी सब्सिडी का प्रावधान किया गया है।`,
     category: 'बिहार एक्सप्रेस',
     district: 'मुजफ्फरपुर (Muzaffarpur)',
     block: 'मुशहरी',
     imageUrl: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=1000&auto=format&fit=crop&q=80',
+    suggestedTags: ['मुजफ्फरपुर', 'शाही लीची', 'कृषि अनुसंधान', 'किसान निर्यात', 'उत्तर बिहार'],
     authorName: 'अमित कुमार ठाकुर',
     authorRole: 'reporter',
     authorDistrict: 'मुजफ्फरपुर (Muzaffarpur)',
@@ -51,12 +53,13 @@ export const INITIAL_NEWS: Omit<NewsItem, 'id'>[] = [
     subTitle: 'पर्यटन विभाग ने जारी किया ब्लूप्रिंट; फल्गु नदी तट पर घाटों का विस्तार और ग्रीन बफर जोन बनेगा',
     summary: 'अंतरराष्ट्रीय तीर्थ स्थल गया में विष्णुपद मंदिर कॉरिडोर परियोजना को लेकर अंतिम डीपीआर को स्वीकृति मिल गई है। सालाना लाखों देश-विदेश के श्रद्धालुओं को विश्वस्तरीय सुविधाएं मिलेंगी।',
     content: `गया: मोक्ष की भूमि गयाजी को वैश्विक पर्यटन मानचित्र पर भव्य रूप से स्थापित करने के लिए 'विष्णुपद मंदिर कॉरिडोर' परियोजना का ब्लूप्रिंट तैयार हो चुका है। परियोजना के तहत मंदिर के चारों ओर चौड़े परिक्रमा पथ, अत्याधुनिक बहुमंजिला पार्किंग और फल्गु नदी के दोनों किनारों पर सुंदर घाटों का निर्माण होगा।
-
+ 
 स्थानीय पंडा समाज और नागरिक प्रतिनिधियों के साथ हुई बैठक में योजना पर सर्वसम्मति बनी है। प्रशासन ने आश्वस्त किया है कि किसी भी ऐतिहासिक धरोहर को नुकसान नहीं पहुंचेगा बल्कि संरक्षण को प्राथमिकता दी जाएगी।`,
     category: 'बिहार एक्सप्रेस',
     district: 'गया (Gaya)',
     block: 'नगर प्रखंड',
     imageUrl: 'https://images.unsplash.com/photo-1596178065887-1198b6148b2b?w=1000&auto=format&fit=crop&q=80',
+    suggestedTags: ['गयाजी', 'विष्णुपद मंदिर', 'तीर्थ कॉरिडोर', 'पर्यटन बिहार', 'फल्गु नदी'],
     authorName: 'सुनील कुमार पाठक',
     authorRole: 'reporter',
     authorDistrict: 'गया (Gaya)',
@@ -179,6 +182,7 @@ export const INITIAL_REPORTERS: ReporterApplication[] = [
     certificateUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
     status: 'approved',
     reporterId: 'DDN-PAT-101',
+    formalPassword: 'DDN@2026',
     designation: 'वरिष्ठ ब्यूरो प्रमुख (Senior Bureau Chief)',
     appliedAt: Date.now() - 1000 * 60 * 60 * 24 * 30,
     approvedAt: Date.now() - 1000 * 60 * 60 * 24 * 28,
@@ -198,6 +202,7 @@ export const INITIAL_REPORTERS: ReporterApplication[] = [
     certificateUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
     status: 'approved',
     reporterId: 'DDN-MUZ-102',
+    formalPassword: 'DDN@2026',
     designation: 'जिला संवाददाता (District Correspondent)',
     appliedAt: Date.now() - 1000 * 60 * 60 * 24 * 25,
     approvedAt: Date.now() - 1000 * 60 * 60 * 24 * 24,
@@ -321,48 +326,11 @@ export async function seedInitialFirestoreData() {
         const docRef = doc(collection(db, 'news'));
         batch.set(docRef, item);
       }
-      for (const rep of INITIAL_REPORTERS) {
-        const docRef = doc(db, 'reporter_applications', rep.id);
-        batch.set(docRef, rep);
-        if (rep.status === 'approved') {
-          const userRef = doc(db, 'users', rep.id);
-          batch.set(userRef, {
-            uid: rep.id,
-            email: rep.email,
-            fullName: rep.fullName,
-            role: 'reporter',
-            reporterId: rep.reporterId,
-            designation: rep.designation,
-            state: rep.state,
-            district: rep.district,
-            block: rep.block,
-            photoUrl: rep.photoUrl,
-            fatherName: rep.fatherName,
-            createdAt: rep.appliedAt,
-            active: true,
-          } as UserProfile);
-        }
-      }
-      for (const ad of INITIAL_ADS) {
-        const docRef = doc(db, 'advertisements', ad.id);
-        batch.set(docRef, ad);
-      }
-      // Seed default Admin profile
-      const adminRef = doc(db, 'users', 'admin-ddn');
-      batch.set(adminRef, {
-        uid: 'admin-ddn',
-        email: 'ddnprimenews@gmail.com',
-        fullName: 'DDN Prime News Chief Administrator',
-        role: 'admin',
-        designation: 'Editor-in-Chief & Publisher',
-        createdAt: Date.now(),
-        active: true,
-      } as UserProfile);
-
       await batch.commit();
-      console.log('Initial news, reporters, ads, and admin successfully seeded in Firestore.');
+      console.log('Initial news successfully seeded in Firestore.');
     }
-  } catch (err) {
-    console.error('Error seeding initial Firestore data:', err);
+  } catch (err: any) {
+    // Non-fatal permission or network restriction, app gracefully operates on INITIAL_NEWS fallback
+    console.warn('Firestore seeding skipped (guest mode or rules restricted):', err?.message || err);
   }
 }

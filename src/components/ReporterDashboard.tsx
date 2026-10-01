@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ReporterApplication, NewsItem, BIHAR_DISTRICTS, CATEGORIES } from '../types';
 import { ReporterIdCard } from './ReporterIdCard';
+import { ReporterAuthorizationLetter } from './ReporterAuthorizationLetter';
+import { PhotoUploadHelper } from './PhotoUploadHelper';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { 
@@ -16,7 +18,8 @@ import {
   Building,
   Image as ImageIcon,
   Eye,
-  Video
+  Video,
+  FileCheck
 } from 'lucide-react';
 
 interface ReporterDashboardProps {
@@ -34,7 +37,7 @@ export const ReporterDashboard: React.FC<ReporterDashboardProps> = ({
   onRefreshData,
   onSuccessToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<'submit' | 'my_news' | 'id_card'>('submit');
+  const [activeTab, setActiveTab] = useState<'submit' | 'my_news' | 'id_card' | 'auth_letter'>('submit');
 
   // Submit News Form State
   const [title, setTitle] = useState('');
@@ -191,6 +194,18 @@ export const ReporterDashboard: React.FC<ReporterDashboardProps> = ({
           <CreditCard className="w-4 h-4" />
           <span>डिजिटल प्रेस आईडी कार्ड</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('auth_letter')}
+          className={`flex items-center space-x-2 px-5 py-3 font-bold text-sm border-b-2 transition ${
+            activeTab === 'auth_letter'
+              ? 'border-red-700 text-red-700'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <FileCheck className="w-4 h-4" />
+          <span>ऑथराइजेशन लेटर (नियुक्ति पत्र)</span>
+        </button>
       </div>
 
       {/* Tab 1: Submit News */}
@@ -301,24 +316,15 @@ export const ReporterDashboard: React.FC<ReporterDashboardProps> = ({
               </div>
             </div>
 
-            {/* Image URL */}
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-                मुख्य तस्वीर URL (Featured Image Link)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                  <ImageIcon className="w-4 h-4" />
-                </div>
-                <input
-                  type="url"
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/... या फोटो लिंक"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:outline-none"
-                />
-              </div>
-            </div>
+            {/* Image URL with Auto Link Generator & Folder Integration */}
+            <PhotoUploadHelper
+              value={imageUrl}
+              onChange={setImageUrl}
+              topicOrCategory={`${title} ${category}`}
+              label="मुख्य समाचार फोटो (Auto Link Generator / Upload from Device / Folder)"
+              placeholder="फोटो लिंक (URL), या 'फोटो चुनें' / 'फोटो फोल्डर' से डायरेक्ट डालें..."
+              allowAiGeneration={true}
+            />
 
             {/* Video / Embed Link */}
             <div>
@@ -477,7 +483,14 @@ export const ReporterDashboard: React.FC<ReporterDashboardProps> = ({
             </p>
           </div>
 
-          <ReporterIdCard reporter={currentReporter} showPrintButton={true} />
+          <ReporterIdCard reporter={currentReporter} showPrintButton={true} isAuthenticated={true} />
+        </div>
+      )}
+
+      {/* Tab 4: Official Authorization Letter */}
+      {activeTab === 'auth_letter' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-8">
+          <ReporterAuthorizationLetter reporter={currentReporter} showPrintButton={true} isAuthenticated={true} />
         </div>
       )}
     </div>

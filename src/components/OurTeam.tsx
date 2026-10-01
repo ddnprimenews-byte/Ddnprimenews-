@@ -1,28 +1,67 @@
 import React, { useState } from 'react';
 import { ReporterApplication, BIHAR_DISTRICTS } from '../types';
+import { ReporterIdCard } from './ReporterIdCard';
+import { ReporterAuthorizationLetter } from './ReporterAuthorizationLetter';
+import { CircularLogo } from './CircularLogo';
 import { 
   Users, 
-  MapPin, 
-  Award, 
   Search, 
   ShieldCheck, 
-  CheckCircle,
-  Building,
-  UserPlus
+  CheckCircle, 
+  Building, 
+  UserPlus, 
+  CreditCard, 
+  FileText, 
+  X, 
+  Printer,
+  Eye,
+  Lock,
+  Download
 } from 'lucide-react';
+import { LoginModal } from './LoginModal';
 
 interface OurTeamProps {
   reporters: ReporterApplication[];
   onApplyClick: () => void;
+  loggedInReporter?: ReporterApplication | null;
+  isAdminLoggedIn?: boolean;
+  onReporterLoginSuccess?: (reporter: ReporterApplication) => void;
+  onAdminLoginSuccess?: () => void;
 }
 
-export const OurTeam: React.FC<OurTeamProps> = ({ reporters, onApplyClick }) => {
+export const OurTeam: React.FC<OurTeamProps> = ({
+  reporters,
+  onApplyClick,
+  loggedInReporter,
+  isAdminLoggedIn = false,
+  onReporterLoginSuccess,
+  onAdminLoginSuccess,
+}) => {
   const [selectedDistrict, setSelectedDistrict] = useState<string>('सभी');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // PRIVACY REQUIREMENT:
-  // Show Card Layouts: Reporter Photo, Full Name, Designation/Role, Assigned State, District, and Block.
-  // PRIVACY REQUIREMENT: NO mobile numbers or email IDs should be displayed publicly on this page.
+  // Modals for full ID Card or Authorization Letter view
+  const [viewingIdCard, setViewingIdCard] = useState<ReporterApplication | null>(null);
+  const [viewingAuthLetter, setViewingAuthLetter] = useState<ReporterApplication | null>(null);
+
+  // Authentication guard modal state for download attempts
+  const [showLoginGuardModal, setShowLoginGuardModal] = useState(false);
+  const [loginGuardMessage, setLoginGuardMessage] = useState({
+    title: 'संवाददाता डाउनलोड प्रमाणीकरण (Reporter Authentication Required)',
+    desc: 'प्रेस आईडी कार्ड एवं आधिकारिक ऑथराइजेशन लेटर डाउनलोड करने के लिए कृपया अपने पंजीकृत क्रेडेंशियल से लॉगिन करें।'
+  });
+
+  const isAuthenticated = Boolean(isAdminLoggedIn || loggedInReporter);
+
+  const handleTriggerLoginPrompt = (title?: string, desc?: string) => {
+    if (title || desc) {
+      setLoginGuardMessage({
+        title: title || 'संवाददाता डाउनलोड प्रमाणीकरण (Reporter Authentication Required)',
+        desc: desc || 'प्रेस आईडी कार्ड एवं आधिकारिक ऑथराइजेशन लेटर डाउनलोड करने के लिए कृपया अपने पंजीकृत क्रेडेंशियल से लॉगिन करें।'
+      });
+    }
+    setShowLoginGuardModal(true);
+  };
 
   const approvedReporters = reporters.filter((r) => r.status === 'approved');
 
@@ -45,17 +84,20 @@ export const OurTeam: React.FC<OurTeamProps> = ({ reporters, onApplyClick }) => 
         <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none" />
         
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div>
-            <div className="inline-flex items-center space-x-1.5 bg-red-950/60 px-3 py-1 rounded-full text-xs font-bold text-red-200 uppercase tracking-widest mb-3 border border-red-500/30">
-              <ShieldCheck className="w-4 h-4 text-green-400" />
-              <span>DDN Prime News Editorial & Field Bureau</span>
+          <div className="flex items-start space-x-4">
+            <CircularLogo size={68} className="mt-1 hidden sm:flex" />
+            <div>
+              <div className="inline-flex items-center space-x-1.5 bg-red-950/60 px-3 py-1 rounded-full text-xs font-bold text-red-200 uppercase tracking-widest mb-3 border border-red-500/30">
+                <ShieldCheck className="w-4 h-4 text-green-400" />
+                <span>DDN Prime News Editorial & Field Bureau</span>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+                हमारी अधिकृत टीम (Our Official Reporters)
+              </h1>
+              <p className="text-red-100 text-sm sm:text-base mt-2 max-w-2xl">
+                डीडीएन प्राइम न्यूज़ के प्रत्येक जिले और प्रखंड में जमीनी हकीकत को निष्पक्षता से प्रस्तुत करने वाले समर्पित पत्रकार। सार्वजनिक रूप से केवल प्रीव्यू उपलब्ध है; कार्ड व लेटर डाउनलोड करने के लिए पंजीकृत क्रेडेंशियल अनिवार्य है।
+              </p>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-              हमारी अधिकृत टीम (Our Official Reporters)
-            </h1>
-            <p className="text-red-100 text-sm sm:text-base mt-2 max-w-2xl">
-              डीडीएन प्राइम न्यूज़ के प्रत्येक जिले और प्रखंड में जमीनी हकीकत को निष्पक्षता से प्रस्तुत करने वाले समर्पित पत्रकार।
-            </p>
           </div>
 
           <div className="flex-shrink-0">
@@ -109,7 +151,7 @@ export const OurTeam: React.FC<OurTeamProps> = ({ reporters, onApplyClick }) => 
         </div>
       </div>
 
-      {/* Reporters Grid */}
+      {/* Reporters Grid: Public View with Preview & Download Actions */}
       {filteredReporters.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
           <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
@@ -127,80 +169,138 @@ export const OurTeam: React.FC<OurTeamProps> = ({ reporters, onApplyClick }) => 
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredReporters.map((reporter) => (
             <div
               key={reporter.id}
-              className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col group"
+              className="bg-white rounded-2xl border-2 border-red-700 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col"
             >
-              {/* Card Header Strip */}
-              <div className="h-2 bg-gradient-to-r from-red-700 via-orange-500 to-red-800" />
-              
-              <div className="p-5 flex flex-col items-center flex-grow text-center">
-                {/* Photo with Verified Badge */}
-                <div className="relative mb-4">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-red-100 shadow-md group-hover:scale-105 transition duration-300 bg-gray-100">
-                    <img
-                      src={
-                        reporter.photoUrl ||
-                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80'
-                      }
-                      alt={reporter.fullName}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80';
-                      }}
-                    />
-                  </div>
-                  <div
-                    title="Authorized Press Reporter"
-                    className="absolute bottom-0 right-0 bg-green-600 text-white p-1 rounded-full shadow-md"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </div>
-                </div>
+              {/* Actual Embedded Digital ID Card Preview */}
+              <div className="p-3 bg-gray-50 flex items-center justify-center border-b border-gray-200">
+                <ReporterIdCard
+                  reporter={reporter}
+                  showPrintButton={false}
+                  isAuthenticated={isAuthenticated}
+                  onRequestLogin={() => handleTriggerLoginPrompt()}
+                />
+              </div>
 
-                {/* Reporter Name & Designation */}
-                <h3 className="text-lg font-bold text-gray-900 leading-snug group-hover:text-red-700 transition">
-                  {reporter.fullName}
-                </h3>
-                <div className="mt-1 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 px-3 py-0.5 rounded-full">
-                  {reporter.designation || 'संवाददाता (Correspondent)'}
-                </div>
+              {/* Action Buttons: Strict Rule 2:
+                  - Public view displays "View / Preview" buttons for viewing ID card and Auth Letter.
+                  - Direct public download is disabled; attempting download prompts Login Modal.
+              */}
+              <div className="p-4 bg-white flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-gray-100">
+                {/* 1. Preview / View ID Card Button */}
+                <button
+                  onClick={() => setViewingIdCard(reporter)}
+                  className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs font-bold transition shadow-xs active:scale-95"
+                  title="आईडी कार्ड देखें (Preview / View ID Card)"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>आईडी कार्ड देखें</span>
+                </button>
 
-                {/* Press ID Badge */}
-                {reporter.reporterId && (
-                  <div className="mt-2 text-[11px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                    PRESS ID: <span className="font-bold text-gray-800">{reporter.reporterId}</span>
-                  </div>
-                )}
-
-                {/* Assigned Work Area */}
-                <div className="w-full mt-4 pt-4 border-t border-gray-100 text-xs space-y-1.5 text-left bg-gray-50/70 p-3 rounded-xl">
-                  <div className="flex items-center text-gray-700 font-medium">
-                    <MapPin className="w-3.5 h-3.5 text-red-600 mr-1.5 flex-shrink-0" />
-                    <span>जिला: <strong className="text-gray-900">{reporter.district || 'समस्त बिहार'}</strong></span>
-                  </div>
-                  {reporter.block && (
-                    <div className="flex items-center text-gray-700 font-medium">
-                      <Building className="w-3.5 h-3.5 text-blue-600 mr-1.5 flex-shrink-0" />
-                      <span>प्रखंड: <strong className="text-gray-900">{reporter.block}</strong></span>
-                    </div>
-                  )}
-                  <div className="flex items-center text-gray-600 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-2 ml-1" />
-                    <span>राज्य: {reporter.state || 'बिहार'}</span>
-                  </div>
-                </div>
-
-                {/* Strict Privacy Compliance Notice */}
-                <div className="mt-3 text-[10px] text-gray-400 italic">
-                  सुरक्षा कारणों से संपर्क सूत्र सार्वजनिक नहीं हैं।
-                </div>
+                {/* 2. Preview / View Authorization Letter Button */}
+                <button
+                  onClick={() => setViewingAuthLetter(reporter)}
+                  className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-gray-950 rounded-lg text-xs font-black transition shadow-xs active:scale-95"
+                  title="ऑथराइजेशन लेटर देखें (Preview / View Auth Letter)"
+                >
+                  <FileText className="w-3.5 h-3.5 text-gray-950" />
+                  <span>ऑथराइजेशन लेटर</span>
+                </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal 1: Full ID Card Preview & Authenticated Download Modal */}
+      {viewingIdCard && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full relative">
+            <button
+              onClick={() => setViewingIdCard(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1.5 rounded-full bg-gray-100 transition z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="text-center mb-4">
+              <h3 className="font-bold text-gray-900 text-base">डिजिटल प्रेस पहचान पत्र (ID Card Preview)</h3>
+              <p className="text-xs text-gray-500">
+                {isAuthenticated
+                  ? 'सत्यापित सत्र सक्रिय: नीचे से उच्च-गुणवत्ता पीडीएफ निर्यात करें'
+                  : 'सार्वजनिक दृश्य: डाउनलोड केवल पंजीकृत क्रेडेंशियल से लॉगिन करने के बाद उपलब्ध है'}
+              </p>
+            </div>
+            <ReporterIdCard
+              reporter={viewingIdCard}
+              showPrintButton={true}
+              isAuthenticated={isAuthenticated}
+              onRequestLogin={() => {
+                setViewingIdCard(null);
+                handleTriggerLoginPrompt(
+                  'प्रेस आईडी कार्ड डाउनलोड प्रमाणीकरण',
+                  'आईडी कार्ड को पीडीएफ फॉर्मेट में डाउनलोड करने के लिए कृपया अपनी पंजीकृत ईमेल व पासवर्ड से लॉगिन करें।'
+                );
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Official Authorization Letter Preview & Authenticated Download Modal */}
+      {viewingAuthLetter && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 sm:p-8 max-w-4xl w-full relative max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setViewingAuthLetter(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-2 rounded-full bg-gray-100 transition z-20 print:hidden"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <ReporterAuthorizationLetter
+              reporter={viewingAuthLetter}
+              showPrintButton={true}
+              isAuthenticated={isAuthenticated}
+              onRequestLogin={() => {
+                setViewingAuthLetter(null);
+                handleTriggerLoginPrompt(
+                  'ऑथराइजेशन लेटर डाउनलोड प्रमाणीकरण',
+                  'प्राधिकार पत्र को पीडीएफ फॉर्मेट में डाउनलोड करने के लिए कृपया अपनी पंजीकृत ईमेल व पासवर्ड से लॉगिन करें।'
+                );
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Authentication Guard Login Modal (Triggered on unauthenticated download attempt) */}
+      {showLoginGuardModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="max-w-md w-full relative">
+            <button
+              onClick={() => setShowLoginGuardModal(false)}
+              className="absolute top-3 right-3 text-white/80 hover:text-white p-2 rounded-full bg-black/50 transition z-30"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <LoginModal
+              onBack={() => setShowLoginGuardModal(false)}
+              reporters={reporters}
+              customTitle={loginGuardMessage.title}
+              customDescription={loginGuardMessage.desc}
+              onReporterLoginSuccess={(rep) => {
+                setShowLoginGuardModal(false);
+                if (onReporterLoginSuccess) onReporterLoginSuccess(rep);
+              }}
+              onAdminLoginSuccess={() => {
+                setShowLoginGuardModal(false);
+                if (onAdminLoginSuccess) onAdminLoginSuccess();
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

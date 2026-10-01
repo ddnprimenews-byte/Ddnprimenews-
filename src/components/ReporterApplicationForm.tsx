@@ -3,6 +3,7 @@ import { BIHAR_DISTRICTS } from '../types';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import confetti from 'canvas-confetti';
+import { CircularLogo } from './CircularLogo';
 import { 
   FileText, 
   Upload, 
@@ -179,16 +180,19 @@ export const ReporterApplicationForm: React.FC<ReporterApplicationFormProps> = (
       ) : (
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
           {/* Form Header Banner */}
-          <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-900 text-white p-6 md:p-8">
-            <div className="flex items-center space-x-2 text-xs font-bold text-red-200 uppercase tracking-widest mb-1">
-              <span>DDN Prime News • पत्रकार पंजीकरण प्रणाली</span>
+          <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-900 text-white p-6 md:p-8 flex items-center space-x-4">
+            <CircularLogo size={62} className="hidden sm:flex flex-shrink-0" />
+            <div>
+              <div className="flex items-center space-x-2 text-xs font-bold text-red-200 uppercase tracking-widest mb-1">
+                <span>DDN Prime News • पत्रकार पंजीकरण प्रणाली</span>
+              </div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+                Apply for Official Reporter ID Card
+              </h1>
+              <p className="text-sm text-red-100 mt-1">
+                डीडीएन प्राइम न्यूज़ के अधिकृत जिला/प्रखंड संवाददाता बनने हेतु अपना आवेदन पत्र भरें।
+              </p>
             </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight">
-              Apply for Official Reporter ID Card
-            </h1>
-            <p className="text-sm text-red-100 mt-1">
-              डीडीएन प्राइम न्यूज़ के अधिकृत जिला/प्रखंड संवाददाता बनने हेतु अपना आवेदन पत्र भरें।
-            </p>
           </div>
 
           {/* Form Alert / Info */}

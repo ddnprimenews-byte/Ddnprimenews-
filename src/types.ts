@@ -9,6 +9,7 @@ export interface NewsItem {
   block?: string;
   imageUrl?: string;
   imagePrompt?: string;
+  suggestedTags?: string[];
   mediaEmbeds?: string[]; // YouTube, Facebook, Instagram URLs
   authorId?: string;
   authorName: string;
@@ -40,6 +41,7 @@ export interface ReporterApplication {
   appliedAt: number;
   approvedAt?: number;
   adminNotes?: string;
+  formalPassword?: string;
 }
 
 export interface UserProfile {
@@ -56,6 +58,7 @@ export interface UserProfile {
   fatherName?: string;
   createdAt: number;
   active: boolean;
+  formalPassword?: string;
 }
 
 export interface AdBanner {

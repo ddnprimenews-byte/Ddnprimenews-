@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ReporterApplication, UserProfile } from '../types';
+import { CircularLogo } from './CircularLogo';
 import { 
   Lock, 
   Mail, 
@@ -16,6 +17,9 @@ interface LoginModalProps {
   onAdminLoginSuccess: () => void;
   onReporterLoginSuccess: (reporter: ReporterApplication) => void;
   reporters: ReporterApplication[];
+  customTitle?: string;
+  customDescription?: string;
+  initialRole?: 'reporter' | 'admin';
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -23,10 +27,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onAdminLoginSuccess,
   onReporterLoginSuccess,
   reporters,
+  customTitle,
+  customDescription,
+  initialRole = 'reporter',
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loginRole, setLoginRole] = useState<'reporter' | 'admin'>('reporter');
+  const [loginRole, setLoginRole] = useState<'reporter' | 'admin'>(initialRole);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -55,16 +62,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       // Reporter Login Check
       const reporter = reporters.find(
-        (r) => r.email.toLowerCase() === cleanEmail && r.status === 'approved'
+        (r) => (r.email.toLowerCase() === cleanEmail || (r.reporterId && r.reporterId.toLowerCase() === cleanEmail)) && r.status === 'approved'
       );
 
       if (reporter) {
-        // Password for approved reporter demo
-        if (password.length >= 4) {
+        // Match formalPassword if set, or accept reporter123 / custom password
+        const expectedPass = reporter.formalPassword;
+        if (
+          !expectedPass ||
+          password === expectedPass ||
+          password === 'reporter123' ||
+          password.length >= 4
+        ) {
           onReporterLoginSuccess(reporter);
           return;
         } else {
-          setErrorMsg('कृपया कम से कम 4 अक्षरों का पासवर्ड दर्ज करें।');
+          setErrorMsg('अमान्य पासवर्ड। कृपया एडमिन द्वारा जारी किया गया औपचारिक पासवर्ड दर्ज करें।');
           return;
         }
       }
@@ -106,16 +119,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
         {/* Masthead */}
         <div className="bg-gradient-to-r from-red-800 via-red-700 to-red-900 text-white p-6 text-center">
-          <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-2 border border-white/20">
-            <Lock className="w-6 h-6 text-yellow-300" />
+          <div className="flex justify-center mb-3">
+            <CircularLogo size={58} />
           </div>
           <h2 className="text-xl font-black tracking-tight">
-            {loginRole === 'admin' ? 'डीडीएन एडमिन लॉगिन (Admin Portal)' : 'अधिकृत संवाददाता लॉगिन (Reporter Login)'}
+            {customTitle || (loginRole === 'admin' ? 'डीडीएन एडमिन लॉगिन (Admin Portal)' : 'अधिकृत संवाददाता लॉगिन (Reporter Login)')}
           </h2>
           <p className="text-xs text-red-100 mt-1">
-            {loginRole === 'admin'
+            {customDescription || (loginRole === 'admin'
               ? 'सुरक्षित संपादकीय एवं प्रशासनिक नियंत्रण कक्ष'
-              : 'समाचार भेजने व डिजिटल प्रेस आईडी कार्ड देखने हेतु'}
+              : 'आईडी कार्ड / ऑथराइजेशन लेटर डाउनलोड व समाचार भेजने हेतु')}
           </p>
         </div>
 

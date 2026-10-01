@@ -31,12 +31,44 @@
 }
 
 @media print {
+  /* Hide all elements by default */
   body * {
     visibility: hidden;
+  }
+
+  /* Reveal only dedicated printable containers */
+  #printable-article, #printable-article * {
+    visibility: visible;
   }
   #printable-id-card, #printable-id-card * {
     visibility: visible;
   }
+  #printable-auth-letter, #printable-auth-letter * {
+    visibility: visible;
+  }
+
+  /* Specifically force hide elements with no-print or print:hidden */
+  .no-print,
+  .print\\:hidden,
+  [data-print-hide="true"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Printable article clean layout */
+  #printable-article {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px 32px;
+    background: #ffffff !important;
+    color: #111827 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
   #printable-id-card {
     position: absolute;
     left: 0;
@@ -44,6 +76,16 @@
     width: 100%;
     margin: 0;
     padding: 20px;
+    box-shadow: none;
+  }
+
+  #printable-auth-letter {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 24px;
     box-shadow: none;
   }
 }

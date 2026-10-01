@@ -1,5 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
@@ -100,8 +102,37 @@ app.post('/api/gemini/suggest-headline', async (req, res) => {
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`DDN Prime News API server running on port ${PORT}`);
-});
+async function startServer() {
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (!isProduction) {
+    // In dev: mount vite.middlewares
+    const { createServer } = await import('vite');
+    const vite = await createServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    // In production: serve static files from dist and SPA fallback
+    const distPath = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Application index.html build not found.');
+      }
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`DDN Prime News Server running on http://0.0.0.0:${PORT} (Production: ${isProduction})`);
+  });
+}
+
+startServer();
+
 export default app;

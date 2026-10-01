@@ -23,11 +23,13 @@ import { SocialHubWidget } from './components/SocialHubWidget';
 import { ArticleCommentsSection } from './components/ArticleCommentsSection';
 import { ArticleTTSPlayer } from './components/ArticleTTSPlayer';
 import { WhatsAppShareFloatingButton } from './components/WhatsAppShareFloatingButton';
+import { CircularLogo } from './components/CircularLogo';
 import { AdPlacementSlot } from './components/AdPlacementSlot';
 import { CricketScoreWidget } from './components/CricketScoreWidget';
 import { StockMarketTicker } from './components/StockMarketTicker';
 import { RashifalWidget } from './components/RashifalWidget';
 import { LiveFMRadioPlayer } from './components/LiveFMRadioPlayer';
+import { ReporterProfileBadge } from './components/ReporterProfileBadge';
 import {
   Flame,
   Search,
@@ -53,7 +55,11 @@ import {
   Mail,
   Phone,
   Building,
-  Scale
+  Scale,
+  Edit3,
+  Printer,
+  Tag,
+  Hash
 } from 'lucide-react';
 
 export default function App() {
@@ -87,52 +93,172 @@ export default function App() {
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Smooth Reading Progress Bar State (User Requested: Fills up as user scrolls down article detail page)
+  const [readingProgress, setReadingProgress] = useState(0);
+
+  // Track scroll position to update reading progress when reading an article
+  useEffect(() => {
+    if (currentView !== 'article_detail') {
+      setReadingProgress(0);
+      return;
+    }
+
+    const handleScroll = () => {
+      const articleEl = document.getElementById('printable-article');
+      if (!articleEl) return;
+
+      const rect = articleEl.getBoundingClientRect();
+      const articleTop = rect.top + window.scrollY;
+      const articleHeight = rect.height;
+      const windowHeight = window.innerHeight;
+      const currentScroll = window.scrollY;
+
+      // Calculate progress starting when article top enters viewport up to the bottom of the article
+      const totalScrollableDistance = articleHeight - windowHeight + 120;
+      if (totalScrollableDistance <= 0) {
+        setReadingProgress(100);
+        return;
+      }
+
+      const scrolledInsideArticle = currentScroll - articleTop;
+      const progressPercent = Math.min(
+        100,
+        Math.max(0, Math.round((scrolledInsideArticle / totalScrollableDistance) * 100))
+      );
+
+      setReadingProgress(progressPercent);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [currentView, selectedArticle]);
+
+  // Handle URL Hash-based and Query-Param Direct Links
+  // Ensures links shared publicly on WhatsApp, Facebook, SMS, or direct browser entry
+  // immediately load the target news article or view even before Firestore initial loading completes
+  useEffect(() => {
+    const handleUrlRouting = () => {
+      const hash = window.location.hash;
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryArticleId = searchParams.get('article') || searchParams.get('newsId') || searchParams.get('id');
+      const queryView = searchParams.get('view');
+
+      // Determine target article ID either from ?article=ID or from #article-ID
+      let targetArticleId: string | null = null;
+      if (queryArticleId) {
+        targetArticleId = queryArticleId;
+      } else if (hash && hash.startsWith('#article-')) {
+        targetArticleId = hash.replace('#article-', '');
+      }
+
+      if (targetArticleId) {
+        const found = newsList.find((n) => n.id === targetArticleId);
+        if (found) {
+          setSelectedArticle(found);
+          setCurrentView('article_detail');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        return;
+      }
+
+      // Check view routing
+      const targetView = queryView || (hash ? hash.replace('#', '') : null);
+      if (targetView === 'apply_id') {
+        setCurrentView('apply_id');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (targetView === 'our_team') {
+        setCurrentView('our_team');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (targetView === 'login') {
+        setCurrentView('login');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (targetView === 'home') {
+        setCurrentView('home');
+      }
+    };
+
+    handleUrlRouting();
+
+    window.addEventListener('hashchange', handleUrlRouting);
+    window.addEventListener('popstate', handleUrlRouting);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlRouting);
+      window.removeEventListener('popstate', handleUrlRouting);
+    };
+  }, [newsList]);
+
   // 1. Initial Firestore Setup & Real-time Listeners
   useEffect(() => {
     // Seed initial data if Firestore collections are empty
     seedInitialFirestoreData();
 
-    // Listen to 'news' collection
-    const newsUnsub = onSnapshot(collection(db, 'news'), (snapshot) => {
-      if (!snapshot.empty) {
-        const loaded: NewsItem[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as NewsItem[];
-        // Sort by createdAt descending
-        loaded.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setNewsList(loaded);
-      } else {
-        // Fallback to initial local items while seeding completes
+    // Listen to 'news' collection with safe fallback
+    const newsUnsub = onSnapshot(
+      collection(db, 'news'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: NewsItem[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as NewsItem[];
+          // Sort by createdAt descending
+          loaded.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          setNewsList(loaded);
+        } else {
+          // Fallback to initial local items while seeding completes
+          setNewsList(INITIAL_NEWS.map((n, idx) => ({ id: `local-news-${idx}`, ...n })));
+        }
+      },
+      (error) => {
+        console.warn('News snapshot listener handled:', error.message);
         setNewsList(INITIAL_NEWS.map((n, idx) => ({ id: `local-news-${idx}`, ...n })));
       }
-    });
+    );
 
-    // Listen to 'reporter_applications' collection
-    const repUnsub = onSnapshot(collection(db, 'reporter_applications'), (snapshot) => {
-      if (!snapshot.empty) {
-        const loaded: ReporterApplication[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as ReporterApplication[];
-        setReporters(loaded);
-      } else {
+    // Listen to 'reporter_applications' collection safely
+    const repUnsub = onSnapshot(
+      collection(db, 'reporter_applications'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: ReporterApplication[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as ReporterApplication[];
+          setReporters(loaded);
+        } else {
+          setReporters(INITIAL_REPORTERS);
+        }
+      },
+      (error) => {
+        // Fallback gracefully for guests/readers without permission
+        console.warn('Reporter applications listener restricted for guest:', error.message);
         setReporters(INITIAL_REPORTERS);
       }
-    });
+    );
 
-    // Listen to 'advertisements' collection
-    const adUnsub = onSnapshot(collection(db, 'advertisements'), (snapshot) => {
-      if (!snapshot.empty) {
-        const loaded: AdBanner[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as AdBanner[];
-        setAds(loaded);
-      } else {
+    // Listen to 'advertisements' collection safely
+    const adUnsub = onSnapshot(
+      collection(db, 'advertisements'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loaded: AdBanner[] = snapshot.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...docSnap.data(),
+          })) as AdBanner[];
+          setAds(loaded);
+        } else {
+          setAds(INITIAL_ADS);
+        }
+      },
+      (error) => {
+        console.warn('Advertisements listener handled:', error.message);
         setAds(INITIAL_ADS);
       }
-    });
+    );
 
     return () => {
       newsUnsub();
@@ -144,6 +270,24 @@ export default function App() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Smooth navigation to widget sections
+  const scrollToSection = (sectionId: string) => {
+    if (currentView !== 'home') {
+      setCurrentView('home');
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 150);
+    } else {
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   };
 
   // Filter News
@@ -170,7 +314,8 @@ export default function App() {
       !searchQuery.trim() ||
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.district && item.district.toLowerCase().includes(searchQuery.toLowerCase()));
+      (item.district && item.district.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.suggestedTags && item.suggestedTags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
 
     return matchesCategory && matchesDistrict && matchesSearch;
   });
@@ -184,6 +329,7 @@ export default function App() {
   const handleOpenArticle = async (article: NewsItem) => {
     setSelectedArticle(article);
     setCurrentView('article_detail');
+    window.location.hash = `article-${article.id}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     // Increment view count in Firestore
@@ -318,9 +464,9 @@ export default function App() {
 
       {/* MAIN HEADER & BRANDING */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between py-2 sm:py-3">
-            {/* Brand Logo & Professional Typography */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-6">
+          <div className="flex items-center justify-between py-2 sm:py-3.5 gap-2 sm:gap-4">
+            {/* Brand Logo & Professional Typography with Red & Gold Gradient Style */}
             <div
               onClick={() => {
                 setCurrentView('home');
@@ -328,50 +474,52 @@ export default function App() {
                 setActiveCategory('सभी');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="cursor-pointer flex items-center space-x-3 select-none group"
+              className="cursor-pointer flex items-center justify-start space-x-2.5 sm:space-x-4 select-none group min-w-0 flex-1 md:flex-initial"
             >
-              {/* Circular 3D Gold & Ruby Logo Emblem */}
-              <div className="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden shadow-lg border-2 border-amber-400 flex-shrink-0 bg-black group-hover:scale-105 transition-transform duration-300">
-                <img
-                  src="/ddn_logo.png"
-                  alt="DDN Prime News Logo"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // Fallback to jpg or styled initials if needed
-                    const target = e.currentTarget;
-                    if (!target.src.endsWith('.jpg')) {
-                      target.src = '/ddn_logo.jpg';
-                    }
-                  }}
-                />
+              {/* Pure Circular Official Logo */}
+              <div className="group-hover:scale-105 transition-transform duration-300 flex-shrink-0 drop-shadow-md">
+                <div className="hidden sm:block">
+                  <CircularLogo size={78} />
+                </div>
+                <div className="block sm:hidden">
+                  <CircularLogo size={58} />
+                </div>
               </div>
 
-              {/* Unique Professional Stylized Brand Title */}
-              <div className="flex flex-col">
-                <div className="flex items-baseline space-x-1.5 sm:space-x-2">
-                  <span className="font-black text-2xl sm:text-4xl tracking-tighter bg-gradient-to-r from-red-800 via-red-600 to-red-800 bg-clip-text text-transparent drop-shadow-sm font-serif">
+              {/* Ultra-Bold, Creative, High-Impact Red and Gold Gradient Masthead Title */}
+              <div className="flex flex-col items-start text-left flex-1 min-w-0">
+                <div className="flex items-center space-x-1.5 sm:space-x-2.5 flex-wrap">
+                  {/* DDN in Deep Metallic Red Gradient with Crisp Shadow */}
+                  <span className="font-serif font-black text-3xl sm:text-5xl lg:text-6xl tracking-tight bg-gradient-to-r from-red-950 via-red-700 to-red-800 bg-clip-text text-transparent drop-shadow-sm leading-none">
                     DDN
                   </span>
-                  <span className="font-extrabold text-xl sm:text-3xl tracking-tight text-gray-950 uppercase">
+                  {/* PRIME in Bold Rich Black */}
+                  <span className="font-sans font-black text-2xl sm:text-4xl lg:text-5xl tracking-tight text-gray-950 uppercase drop-shadow-sm leading-none">
                     PRIME
                   </span>
-                  <span className="bg-gradient-to-r from-amber-500 to-yellow-600 text-white font-black text-xs sm:text-sm px-2 py-0.5 rounded tracking-widest uppercase shadow-sm">
+                  {/* NEWS in Luxurious Gold Gradient Badge */}
+                  <span className="bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-white font-black text-xs sm:text-base lg:text-lg px-2.5 sm:px-3.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg tracking-wider sm:tracking-widest uppercase shadow-md border border-amber-300/80 leading-tight">
                     NEWS
                   </span>
                 </div>
-                <div className="flex items-center space-x-2 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping inline-block" />
-                  <span className="text-[10px] sm:text-xs text-gray-600 font-extrabold tracking-wide uppercase">
-                    सच्ची, निर्भीक और निष्पक्ष पत्रकारिता • राष्ट्रीय व बिहार राज्य का डिजिटल समाचार नेटवर्क
+
+                {/* Subtitle with Live Pulse Indicator */}
+                <div className="flex items-center space-x-1.5 sm:space-x-2 mt-1 sm:mt-1.5 max-w-full overflow-hidden">
+                  <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5 flex-shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-red-600"></span>
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-gray-800 font-extrabold tracking-tight sm:tracking-wider uppercase truncate">
+                    DARBHANGA DIGITAL NETWORK • सच्ची, निर्भीक और निष्पक्ष पत्रकारिता
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Header Right: Search & Mobile Menu Button */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 self-center">
               {/* Search Bar */}
-              <div className="relative hidden md:block w-64 lg:w-80">
+              <div className="relative hidden md:block w-56 lg:w-72">
                 <input
                   type="text"
                   placeholder="खबरें, जिला या विषय खोजें..."
@@ -489,6 +637,31 @@ export default function App() {
                   {cat}
                 </button>
               ))}
+
+              {/* Special Live Feature Tabs (User Requested: Cricket, Rashifal, FM Radio) */}
+              <button
+                onClick={() => scrollToSection('cricket-section')}
+                className="px-2.5 py-1 rounded transition whitespace-nowrap flex items-center space-x-1 text-emerald-300 hover:bg-emerald-950 font-bold text-xs bg-emerald-950/40 border border-emerald-400/50 shadow-xs"
+                title="लाइव क्रिकेट स्कोर देखें"
+              >
+                <span>🏏 लाइव क्रिकेट</span>
+              </button>
+
+              <button
+                onClick={() => scrollToSection('rashifal-section')}
+                className="px-2.5 py-1 rounded transition whitespace-nowrap flex items-center space-x-1 text-amber-300 hover:bg-amber-950 font-bold text-xs bg-amber-950/40 border border-amber-400/50 shadow-xs"
+                title="दैनिक राशिफल देखें"
+              >
+                <span>🔮 राशिफल</span>
+              </button>
+
+              <button
+                onClick={() => scrollToSection('fm-section')}
+                className="px-2.5 py-1 rounded transition whitespace-nowrap flex items-center space-x-1 text-rose-300 hover:bg-rose-950 font-bold text-xs bg-rose-950/40 border border-rose-400/50 shadow-xs"
+                title="लाइव रेडियो व एफएम सुनें"
+              >
+                <span>📻 लाइव रेडियो/FM</span>
+              </button>
             </nav>
 
             {/* Real-time District Weather in Header Navigation Bar */}
@@ -532,7 +705,24 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        {/* READING PROGRESS BAR AT TOP OF STICKY HEADER (User Requested: Smooth reading progress bar that fills up as user scrolls down article) */}
+        {currentView === 'article_detail' && (
+          <div className="w-full h-1.5 bg-gray-200/80 overflow-hidden print:hidden relative">
+            <div
+              className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-yellow-400 transition-all duration-150 ease-out shadow-sm"
+              style={{ width: `${readingProgress}%` }}
+              role="progressbar"
+              aria-valuenow={readingProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            />
+          </div>
+        )}
       </header>
+
+      {/* 4. STOCK MARKET REAL-TIME TICKER (Requested: Nifty 50, Sensex, Gold, Silver Updates) */}
+      <StockMarketTicker />
 
       {/* MOBILE MENU ACCORDION */}
       {mobileMenuOpen && (
@@ -546,6 +736,37 @@ export default function App() {
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-xs"
             />
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+          </div>
+
+          {/* Quick Mobile Feature Shortcuts */}
+          <div className="grid grid-cols-3 gap-1.5 text-center text-xs font-bold pb-2 border-b border-gray-100">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                scrollToSection('cricket-section');
+              }}
+              className="p-2 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-200"
+            >
+              🏏 क्रिकेट स्कोर
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                scrollToSection('rashifal-section');
+              }}
+              className="p-2 bg-amber-50 text-amber-800 rounded-lg border border-amber-200"
+            >
+              🔮 राशिफल
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                scrollToSection('fm-section');
+              }}
+              className="p-2 bg-rose-50 text-rose-800 rounded-lg border border-rose-200"
+            >
+              📻 रेडियो / FM
+            </button>
           </div>
 
           {/* Mobile News Categories Grid */}
@@ -647,12 +868,48 @@ export default function App() {
         </div>
       )}
 
+      {/* 2. DISTRICT LEVEL ADVERTISEMENT SLOT (डिस्ट्रिक्ट पेज विज्ञापन) */}
+      {selectedDistrict !== 'सभी जिले (All Districts)' && currentView === 'home' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
+          <AdPlacementSlot
+            placementKey="district_local"
+            customTitle={`${selectedDistrict} स्थानीय व्यापार व प्रायोजित विज्ञापन स्लॉट`}
+            adList={ads}
+            onBookAdClick={() => showToast('जिला विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+          />
+        </div>
+      )}
+
+      {/* 2. STATE LEVEL ADVERTISEMENT SLOT (राज्य पेज विज्ञापन) */}
+      {activeCategory === 'बिहार एक्सप्रेस' && currentView === 'home' && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
+          <AdPlacementSlot
+            placementKey="feed_native"
+            customTitle="बिहार राज्य विशेष प्रायोजित विज्ञापन स्लॉट (State Sponsored Slot)"
+            adList={ads}
+            onBookAdClick={() => showToast('राज्य विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+          />
+        </div>
+      )}
+
       {/* MAIN VIEW CONTROLLER */}
       <main className="flex-grow">
         {/* VIEW 1: OUR TEAM PAGE */}
         {currentView === 'our_team' && (
           <OurTeam
             reporters={reporters}
+            loggedInReporter={loggedInReporter}
+            isAdminLoggedIn={isAdminLoggedIn}
+            onReporterLoginSuccess={(reporter) => {
+              setLoggedInReporter(reporter);
+              setIsAdminLoggedIn(false);
+              showToast(`स्वागत है ${reporter.fullName}! अब आप अपना पहचान पत्र व लेटर डाउनलोड कर सकते हैं।`);
+            }}
+            onAdminLoginSuccess={() => {
+              setIsAdminLoggedIn(true);
+              setLoggedInReporter(null);
+              showToast('एडमिन सत्यापन सफल! डाउनलोड अनुमतियां सक्रिय हैं।');
+            }}
             onApplyClick={() => {
               setCurrentView('apply_id');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -722,14 +979,59 @@ export default function App() {
         {/* VIEW 6: ARTICLE FULL DETAIL VIEW */}
         {currentView === 'article_detail' && selectedArticle && (
           <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6">
-            <button
-              onClick={() => setCurrentView('home')}
-              className="text-xs font-bold text-gray-500 hover:text-red-700 flex items-center space-x-1 mb-4"
-            >
-              <span>← मुख्य समाचार सूची पर वापस जाएं</span>
-            </button>
+            <div className="flex items-center justify-between mb-4 print:hidden">
+              <button
+                onClick={() => {
+                  window.history.pushState(null, '', window.location.pathname);
+                  setCurrentView('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="text-xs font-bold text-gray-500 hover:text-red-700 flex items-center space-x-1"
+              >
+                <span>← मुख्य समाचार सूची पर वापस जाएं</span>
+              </button>
 
-            <article className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden p-6 sm:p-10">
+              {/* Reading Progress Indicator Badge */}
+              <div className="flex items-center space-x-2 text-xs font-bold text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-200 shadow-2xs">
+                <BookOpen className="w-3.5 h-3.5 text-red-600" />
+                <span>रीडिंग प्रोग्रेस:</span>
+                <span className="text-red-700 font-black">{readingProgress}%</span>
+              </div>
+            </div>
+
+            <article
+              id="printable-article"
+              className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden p-6 sm:p-10 relative"
+            >
+              {/* Top Article Card Reading Progress Strip */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gray-100 print:hidden overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-red-600 via-amber-500 to-yellow-400 transition-all duration-150 ease-out"
+                  style={{ width: `${readingProgress}%` }}
+                />
+              </div>
+
+              {/* Printable-only DDN Prime News Letterhead Header (Appears only on printed paper/PDF) */}
+              <div className="hidden print:block border-b-2 border-red-800 pb-4 mb-6 text-center">
+                <div className="flex items-center justify-between">
+                  <div className="text-left">
+                    <span className="text-xs tracking-widest text-red-700 font-bold uppercase font-sans">
+                      Government Registered Digital News & Media Network
+                    </span>
+                    <h1 className="text-3xl font-black text-red-900 tracking-tight">
+                      DDN PRIME NEWS
+                    </h1>
+                    <p className="text-xs text-gray-700 font-semibold mt-0.5">
+                      डी डी एन प्राइम न्यूज़ • निष्पक्ष, निर्भीक एवं सटीक पत्रकारिता
+                    </p>
+                  </div>
+                  <div className="text-right text-[10px] text-gray-500">
+                    <div>पोर्टल: ddnprimenews.in</div>
+                    <div>दिनांक: {new Date().toLocaleDateString('hi-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Category & District Tags */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="bg-red-700 text-white font-bold text-xs px-3 py-1 rounded-full uppercase">
@@ -742,10 +1044,20 @@ export default function App() {
                   </span>
                 )}
                 {selectedArticle.isBreaking && (
-                  <span className="bg-yellow-400 text-gray-950 font-black text-xs px-2.5 py-1 rounded-full animate-pulse">
+                  <span className="bg-yellow-400 text-gray-950 font-black text-xs px-2.5 py-1 rounded-full animate-pulse print:hidden">
                     BREAKING NEWS
                   </span>
                 )}
+              </div>
+
+              {/* 1. TOP OF ARTICLE ADVERTISEMENT SLOT (हर न्यूज़ के पास विज्ञापन लगाने की जगह - hidden during print) */}
+              <div className="print:hidden">
+                <AdPlacementSlot
+                  placementKey="article_top"
+                  customTitle="खबर मुख्य प्रायोजक विज्ञापन स्लॉट (Article Top Ad Space)"
+                  adList={ads}
+                  onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+                />
               </div>
 
               {/* Title & Subtitle */}
@@ -759,7 +1071,7 @@ export default function App() {
               )}
 
               {/* Author & Timestamp Bar */}
-              <div className="flex items-center justify-between py-3 border-y border-gray-100 mb-6 text-xs text-gray-500">
+              <div className="flex flex-wrap items-center justify-between py-3 border-y border-gray-100 mb-6 text-xs text-gray-500 gap-2">
                 <div className="flex items-center space-x-2">
                   <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-bold">
                     {selectedArticle.authorName.charAt(0)}
@@ -779,7 +1091,52 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3 text-gray-500">
+                <div className="flex items-center space-x-2.5 text-gray-500 print:hidden">
+                  {/* Print this news button (User Requested: triggers window.print(), hides ads/nav, clean printout) */}
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg font-bold text-xs shadow-xs transition active:scale-95"
+                    title="यह समाचार प्रिंट करें अथवा PDF में सुरक्षित करें"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-yellow-400" />
+                    <span>Print this news (प्रिंट करें)</span>
+                  </button>
+
+                  {/* Admin Direct Edit Action */}
+                  {isAdminLoggedIn && (
+                    <button
+                      onClick={() => {
+                        setCurrentView('admin_panel');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        showToast(`एडमिन पैनल में 'रिपोर्टर न्यूज़ मॉडरेशन' पर जाकर "${selectedArticle.title.slice(0, 30)}..." एडिट करें`);
+                      }}
+                      className="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-xs transition"
+                      title="एडमिन द्वारा यह समाचार संपादित करें"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>खबर एडिट करें</span>
+                    </button>
+                  )}
+
+                  {/* WhatsApp Quick Share Header Button */}
+                  {(() => {
+                    const origin = window.location.origin;
+                    const directUrl = `${origin}/#article-${selectedArticle.id}`;
+                    return (
+                      <a
+                        href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                          `🔴 *DDN PRIME NEWS*\n📰 *${selectedArticle.district ? `[${selectedArticle.district}] ` : ''}${selectedArticle.title}*\n\n👉 पूरी खबर पढ़ें:\n${directUrl}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center space-x-1 px-3 py-1 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-lg font-bold text-xs shadow-xs transition active:scale-95"
+                        title="व्हाट्सएप पर शेयर करें"
+                      >
+                        <span>शेयर WhatsApp</span>
+                      </a>
+                    );
+                  })()}
+
                   {/* Text Size Control */}
                   <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg border border-gray-200">
                     <span className="text-[10px] font-bold text-gray-500 px-1 hidden sm:inline flex items-center">
@@ -829,12 +1186,51 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Text-to-Speech (TTS) Audio Player */}
-              <ArticleTTSPlayer
-                title={selectedArticle.title}
-                summary={selectedArticle.summary}
-                content={selectedArticle.content}
-              />
+              {/* Verified Reporter Profile Badge (Top placement for immediate author authenticity & press credentials) */}
+              {(() => {
+                const matchedReporter = reporters.find(
+                  (r) =>
+                    (selectedArticle.authorId && r.id === selectedArticle.authorId) ||
+                    (r.fullName && r.fullName.trim().toLowerCase() === selectedArticle.authorName.trim().toLowerCase())
+                );
+
+                return (
+                  <div className="mb-6 print:hidden">
+                    <ReporterProfileBadge
+                      reporter={matchedReporter}
+                      authorName={selectedArticle.authorName}
+                      authorDistrict={selectedArticle.district || selectedArticle.authorDistrict}
+                      authorRole={selectedArticle.authorRole}
+                      allReporters={reporters}
+                      isAdminLoggedIn={isAdminLoggedIn}
+                      loggedInReporter={loggedInReporter}
+                      onReporterLoginSuccess={(rep) => {
+                        setLoggedInReporter(rep);
+                        setIsAdminLoggedIn(false);
+                        showToast(`स्वागत है ${rep.fullName}! अब आप अपना पहचान पत्र व लेटर डाउनलोड कर सकते हैं।`);
+                      }}
+                      onAdminLoginSuccess={() => {
+                        setIsAdminLoggedIn(true);
+                        setLoggedInReporter(null);
+                        showToast('एडमिन सत्यापन सफल! डाउनलोड अनुमतियां सक्रिय हैं।');
+                      }}
+                      onViewOurTeam={() => {
+                        setCurrentView('our_team');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  </div>
+                );
+              })()}
+
+              {/* Text-to-Speech (TTS) Audio Player (Hidden during print) */}
+              <div className="print:hidden">
+                <ArticleTTSPlayer
+                  title={selectedArticle.title}
+                  summary={selectedArticle.summary}
+                  content={selectedArticle.content}
+                />
+              </div>
 
               {/* Featured Image */}
               {selectedArticle.imageUrl && (
@@ -850,9 +1246,9 @@ export default function App() {
                 </div>
               )}
 
-              {/* Media Embeds (YouTube, FB, Insta) */}
+              {/* Media Embeds (YouTube, FB, Insta - Hidden during print) */}
               {selectedArticle.mediaEmbeds && selectedArticle.mediaEmbeds.length > 0 && (
-                <div className="mb-6">
+                <div className="mb-6 print:hidden">
                   {selectedArticle.mediaEmbeds.map((url, idx) => (
                     <MediaEmbed key={idx} url={url} />
                   ))}
@@ -872,6 +1268,16 @@ export default function App() {
                 {selectedArticle.summary}
               </div>
 
+              {/* 2. MID-ARTICLE / INLINE ADVERTISEMENT SLOT (Hidden during print) */}
+              <div className="print:hidden">
+                <AdPlacementSlot
+                  placementKey="inline"
+                  customTitle="समाचार इन-लाइन विज्ञापन स्लॉट (In-Article Ad Space)"
+                  adList={ads}
+                  onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+                />
+              </div>
+
               {/* Detailed Content */}
               <div
                 className={`text-gray-800 space-y-4 whitespace-pre-line font-normal transition-all ${
@@ -885,9 +1291,9 @@ export default function App() {
                 {selectedArticle.content}
               </div>
 
-              {/* Inline Content Advertisement */}
+              {/* Inline Content Custom Banner if present (Hidden during print) */}
               {inlineAd && (
-                <div className="my-8 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center">
+                <div className="my-8 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center print:hidden">
                   <span className="text-[10px] uppercase text-gray-400 font-bold block mb-1">
                     विज्ञापन • {inlineAd.sponsorName}
                   </span>
@@ -901,125 +1307,226 @@ export default function App() {
                 </div>
               )}
 
-              {/* Related News Section */}
+              {/* Tag Cloud Section (User Requested: Add a tag cloud section at the bottom of the article detail page displaying suggestedTags, making each tag clickable to filter news by that specific topic) */}
               {(() => {
-                const relatedItems = publishedNews
-                  .filter(
-                    (item) =>
-                      item.id !== selectedArticle.id &&
-                      (item.category === selectedArticle.category ||
-                        (selectedArticle.district && item.district === selectedArticle.district))
-                  )
-                  .slice(0, 4);
+                // Get suggestedTags from article or generate contextually from category & district & title
+                const rawTags = selectedArticle.suggestedTags && selectedArticle.suggestedTags.length > 0
+                  ? selectedArticle.suggestedTags
+                  : [
+                      selectedArticle.category,
+                      selectedArticle.district ? selectedArticle.district.split(' ')[0] : 'बिहार',
+                      'ताजा खबर',
+                      'डीडीएन प्राइम न्यूज़',
+                      'ब्रेकिंग न्यूज़',
+                    ].filter(Boolean);
 
-                if (relatedItems.length === 0) return null;
+                // Deduplicate tags
+                const tags = Array.from(new Set(rawTags));
 
                 return (
-                  <div className="mt-10 pt-8 border-t border-gray-200">
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-2.5 h-6 bg-red-700 rounded-sm" />
-                        <h3 className="text-xl font-black text-gray-900">
-                          संबंधित खबरें (Related News)
-                        </h3>
-                      </div>
-                      <span className="text-xs text-gray-500 font-semibold">
-                        {selectedArticle.category} {selectedArticle.district ? `• ${selectedArticle.district}` : ''}
-                      </span>
+                  <div className="my-8 p-5 bg-gradient-to-r from-gray-50 via-red-50/20 to-gray-50 rounded-2xl border border-gray-200">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
+                      <Tag className="w-3.5 h-3.5 text-red-600" />
+                      <span>ट्रेंडिंग विषय व टैग्स (Related Topics & Tags):</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {relatedItems.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleOpenArticle(item)}
-                          className="group border border-gray-200 hover:border-red-500 rounded-xl p-3.5 bg-gray-50/50 hover:bg-white transition cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md"
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setSearchQuery(tag);
+                            setCurrentView('home');
+                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                            showToast(`विषय "${tag}" से संबंधित समाचार फ़िल्टर किए गए`);
+                          }}
+                          className="group inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-red-700 text-gray-700 hover:text-white rounded-xl text-xs font-bold border border-gray-200 hover:border-red-700 shadow-2xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95"
+                          title={`क्लिक करें: "${tag}" विषय पर सभी समाचार देखें`}
                         >
-                          <div>
-                            <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-100 mb-2.5">
-                              {item.imageUrl ? (
-                                <img
-                                  src={item.imageUrl}
-                                  alt={item.title}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
-                                  DDN Prime
-                                </div>
-                              )}
-                              <span className="absolute top-2 left-2 bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                {item.category}
-                              </span>
-                            </div>
-
-                            <h4 className="font-bold text-sm text-gray-900 group-hover:text-red-700 transition line-clamp-2 leading-snug">
-                              {item.title}
-                            </h4>
-
-                            {item.summary && (
-                              <p className="text-xs text-gray-600 line-clamp-2 mt-1.5 leading-relaxed">
-                                {item.summary}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-[11px] text-gray-500">
-                            <span className="flex items-center text-gray-700 font-medium">
-                              <MapPin className="w-3 h-3 text-red-600 mr-1" />
-                              {item.district || 'बिहार'}
-                            </span>
-                            <span className="flex items-center text-red-700 font-bold group-hover:underline">
-                              पढ़ें <ChevronRight className="w-3 h-3 ml-0.5" />
-                            </span>
-                          </div>
-                        </div>
+                          <Hash className="w-3 h-3 text-red-500 group-hover:text-yellow-300 transition-colors" />
+                          <span>{tag}</span>
+                        </button>
                       ))}
                     </div>
                   </div>
                 );
               })()}
 
-              {/* Interactive Reader Comments & Community Discussions */}
-              <ArticleCommentsSection
-                articleId={selectedArticle.id}
-                articleTitle={selectedArticle.title}
-                loggedInReporter={loggedInReporter}
-                isAdminLoggedIn={isAdminLoggedIn}
-                onNavigateLogin={() => {
-                  setCurrentView('login');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onSuccessToast={showToast}
-              />
+              {/* 3. BOTTOM OF ARTICLE ADVERTISEMENT SLOT (Hidden during print) */}
+              <div className="print:hidden">
+                <AdPlacementSlot
+                  placementKey="article_bottom"
+                  customTitle="न्यूज़ एंड-आर्टिकल प्रमोशन स्लॉट (Article End Ad Space)"
+                  adList={ads}
+                  onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+                />
+              </div>
 
-              {/* Footer Share & Back */}
-              <div className="mt-8 pt-6 border-t border-gray-200 flex items-center justify-between">
-                <button
-                  onClick={() => setCurrentView('home')}
-                  className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition"
-                >
-                  ← अन्य खबरें पढ़ें
-                </button>
+              {/* Print Footer Disclaimer & Copyright (Only on print) */}
+              <div className="hidden print:block mt-8 pt-4 border-t border-gray-300 text-[10px] text-gray-600 text-center">
+                © {new Date().getFullYear()} DDN Prime News Network • निष्पक्ष, निर्भीक एवं सटीक पत्रकारिता • ddnprimenews.in
+              </div>
 
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    showToast('समाचार लिंक कॉपी किया गया!');
+              {/* Related News Section (Hidden during print) */}
+              <div className="print:hidden">
+                {(() => {
+                  const relatedItems = publishedNews
+                    .filter(
+                      (item) =>
+                        item.id !== selectedArticle.id &&
+                        (item.category === selectedArticle.category ||
+                          (selectedArticle.district && item.district === selectedArticle.district))
+                    )
+                    .slice(0, 4);
+
+                  if (relatedItems.length === 0) return null;
+
+                  return (
+                    <div className="mt-10 pt-8 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2.5 h-6 bg-red-700 rounded-sm" />
+                          <h3 className="text-xl font-black text-gray-900">
+                            संबंधित खबरें (Related News)
+                          </h3>
+                        </div>
+                        <span className="text-xs text-gray-500 font-semibold">
+                          {selectedArticle.category} {selectedArticle.district ? `• ${selectedArticle.district}` : ''}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {relatedItems.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={() => handleOpenArticle(item)}
+                            className="group border border-gray-200 hover:border-red-500 rounded-xl p-3.5 bg-gray-50/50 hover:bg-white transition cursor-pointer flex flex-col justify-between shadow-sm hover:shadow-md"
+                          >
+                            <div>
+                              <div className="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-100 mb-2.5">
+                                {item.imageUrl ? (
+                                  <img
+                                    src={item.imageUrl}
+                                    alt={item.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-400">
+                                    DDN Prime
+                                  </div>
+                                )}
+                                <span className="absolute top-2 left-2 bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                                  {item.category}
+                                </span>
+                              </div>
+
+                              <h4 className="font-bold text-sm text-gray-900 group-hover:text-red-700 transition line-clamp-2 leading-snug">
+                                {item.title}
+                              </h4>
+
+                              {item.summary && (
+                                <p className="text-xs text-gray-600 line-clamp-2 mt-1.5 leading-relaxed">
+                                  {item.summary}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-[11px] text-gray-500">
+                              <span className="flex items-center text-gray-700 font-medium">
+                                <MapPin className="w-3 h-3 text-red-600 mr-1" />
+                                {item.district || 'बिहार'}
+                              </span>
+                              <span className="flex items-center text-red-700 font-bold group-hover:underline">
+                                पढ़ें <ChevronRight className="w-3 h-3 ml-0.5" />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Interactive Reader Comments & Community Discussions */}
+                <ArticleCommentsSection
+                  articleId={selectedArticle.id}
+                  articleTitle={selectedArticle.title}
+                  loggedInReporter={loggedInReporter}
+                  isAdminLoggedIn={isAdminLoggedIn}
+                  onNavigateLogin={() => {
+                    setCurrentView('login');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="flex items-center space-x-1 px-4 py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-200"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span>शेयर करें</span>
-                </button>
+                  onSuccessToast={showToast}
+                />
+
+                {/* Footer Share & Back */}
+                <div className="mt-8 pt-6 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    onClick={() => setCurrentView('home')}
+                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg transition"
+                  >
+                    ← अन्य खबरें पढ़ें
+                  </button>
+
+                  <div className="flex items-center space-x-2">
+                    {/* Dedicated WhatsApp Share Button */}
+                    {(() => {
+                      const origin = window.location.origin;
+                      const directUrl = `${origin}/#article-${selectedArticle.id}`;
+                      return (
+                        <a
+                          href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                            `🔴 *DDN PRIME NEWS*\n📰 *${selectedArticle.district ? `[${selectedArticle.district}] ` : ''}${selectedArticle.title}*\n\n👉 पूरी खबर पढ़ें:\n${directUrl}\n\n📲 निष्पक्ष व सटीक पत्रकारिता के लिए DDN Prime News से जुड़े रहें।`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1.5 px-4 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95"
+                          title="व्हाट्सएप पर शेयर करें"
+                        >
+                          <span>व्हाट्सएप शेयर</span>
+                        </a>
+                      );
+                    })()}
+
+                    <button
+                      onClick={() => {
+                        const directUrl = `${window.location.origin}/#article-${selectedArticle.id}`;
+                        navigator.clipboard.writeText(directUrl);
+                        showToast('समाचार का डायरेक्ट लिंक कॉपी किया गया!');
+                      }}
+                      className="flex items-center space-x-1 px-4 py-2 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100 transition"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>लिंक कॉपी करें</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </article>
+
+            {/* FLOATING WHATSAPP SHARE BUTTON (Requested: Quick Social Spread) */}
+            <WhatsAppShareFloatingButton
+              title={selectedArticle.title}
+              summary={selectedArticle.summary}
+              category={selectedArticle.category}
+              district={selectedArticle.district}
+              articleId={selectedArticle.id}
+            />
           </div>
         )}
 
         {/* VIEW 7: PORTAL HOMEPAGE (DDN Prime Broadcast Layout) */}
         {currentView === 'home' && (
           <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6">
+            {/* 1. HOMEPAGE TOP LEADERBOARD ADVERTISEMENT (होम पेज पर विज्ञापन लगाने की जगह) */}
+            <AdPlacementSlot
+              placementKey="header"
+              customTitle="डीडीएन प्राइम मुख्य बैनर विज्ञापन (Homepage Leaderboard Ad)"
+              adList={ads}
+              onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+            />
+
             {/* Lead Layout: Big Featured Headline (Left 8 cols) + Top Stories Sidebar (Right 4 cols) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
               {/* Main Featured Hero Story (8 cols) */}
@@ -1078,6 +1585,11 @@ export default function App() {
                   </div>
                 )}
 
+                {/* 2. LIVE CRICKET SCORECARD (लाइव क्रिकेट स्कोर) */}
+                <div id="cricket-section" className="scroll-mt-24">
+                  <CricketScoreWidget />
+                </div>
+
                 {/* Sub-lead 2-Column Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {filteredNews.slice(1, 5).map((item) => (
@@ -1108,6 +1620,14 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {/* 3. IN-FEED NATIVE ADVERTISEMENT SLOT (खबरों के बीच प्रायोजित विज्ञापन) */}
+                <AdPlacementSlot
+                  placementKey="feed_native"
+                  customTitle="होम समाचार इन-फीड प्रायोजित विज्ञापन (In-Feed Sponsor Slot)"
+                  adList={ads}
+                  onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+                />
               </div>
 
               {/* Sidebar Right (4 cols): DDN Prime Fast News Updates & Sponsor Ads */}
@@ -1156,27 +1676,13 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Sidebar Ad Placement Slot */}
-                {sidebarAd && (
-                  <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm text-center">
-                    <span className="text-[9px] uppercase tracking-wider text-gray-400 font-bold block mb-1">
-                      प्रायोजित विज्ञापन (Sponsor)
-                    </span>
-                    <a
-                      href={sidebarAd.targetUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block overflow-hidden rounded-xl group"
-                    >
-                      <img
-                        src={sidebarAd.imageUrl}
-                        alt={sidebarAd.title}
-                        className="w-full max-h-72 object-cover group-hover:scale-102 transition"
-                      />
-                    </a>
-                    <h4 className="text-xs font-bold text-gray-800 mt-2">{sidebarAd.title}</h4>
-                  </div>
-                )}
+                {/* Sidebar Ad Placement Slot (हर समय विज्ञापन का स्थान) */}
+                <AdPlacementSlot
+                  placementKey="sidebar"
+                  customTitle="प्रायोजित साइडबार विज्ञापन (Sidebar Sponsor)"
+                  adList={ads}
+                  onBookAdClick={() => showToast('विज्ञापन बुकिंग हेतु संपर्क करें: +91 9341050287')}
+                />
 
                 {/* Daily Newsletter Subscription Form Widget */}
                 <DailyNewsletterWidget />
@@ -1212,6 +1718,16 @@ export default function App() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 4. DAILY RASHIFAL WIDGET (दैनिक राशिफल - 12 राशियां) */}
+            <div id="rashifal-section" className="scroll-mt-24 mb-10">
+              <RashifalWidget />
+            </div>
+
+            {/* 5. LIVE FM RADIO PLAYER (लाइव एफएम व रेडियो स्टेशन) */}
+            <div id="fm-section" className="scroll-mt-24 mb-10">
+              <LiveFMRadioPlayer />
             </div>
 
             {/* SPECIAL VIDEO SECTION (ब्रीफ के अनुसार विशेष वीडियो सेक्शन) */}
@@ -1288,16 +1804,7 @@ export default function App() {
             {/* Column 1 (4 cols): Brand & Official Editorial / Registered Address */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-amber-400 bg-black flex-shrink-0 shadow-md">
-                  <img
-                    src="/ddn_logo.png"
-                    alt="DDN Prime News"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = '/ddn_logo.jpg';
-                    }}
-                  />
-                </div>
+                <CircularLogo size={56} />
                 <div>
                   <div className="flex items-baseline space-x-1.5">
                     <span className="font-serif font-black text-2xl text-red-500">DDN</span>
@@ -1319,8 +1826,8 @@ export default function App() {
                     <Building className="w-3.5 h-3.5 text-red-500" />
                     <span>संपादक कार्यालय (Editorial Office):</span>
                   </div>
-                  <p className="text-gray-300">
-                    पैगंबरपुर, पोस्ट-दरभंगा, पीएस-केवटी, डिस्ट्रिक्ट-दरभंगा, बिहार, 847121
+                  <p className="text-gray-200 font-medium">
+                    <strong className="text-white">DDN Prime News</strong>, पैगंबरपुर, पोस्ट-दरभंगा, पीएस-केवटी, डिस्ट्रिक्ट-दरभंगा, बिहार, 847121
                   </p>
                 </div>
 
@@ -1330,8 +1837,8 @@ export default function App() {
                     <Building className="w-3.5 h-3.5 text-amber-500" />
                     <span>रजिस्टर्ड कार्यालय (Registered Office):</span>
                   </div>
-                  <p className="text-gray-300">
-                    DDN Prime News, वार्ड नंबर 9, पैगंबरपुर, पोस्ट-दरभंगा, पीएस-केवटी, डिस्ट्रिक्ट-दरभंगा, बिहार, 847121
+                  <p className="text-gray-200 font-medium">
+                    <strong className="text-amber-400">दरभंगा डिजिटल नेटवर्क</strong>, वार्ड नंबर 9, पैगंबरपुर, पोस्ट-दरभंगा, पीएस-केवटी, डिस्ट्रिक्ट-दरभंगा, बिहार, 847121
                   </p>
                 </div>
               </div>
@@ -1492,10 +1999,33 @@ export default function App() {
               © {new Date().getFullYear()} DDN Prime News Network • प्रधान संपादक: राजेश कुमार साहू • सर्वाधिकार सुरक्षित।
             </div>
             <div className="flex space-x-4">
-              <span className="hover:text-gray-300 cursor-pointer">भारतीय प्रेस संहिता</span>
-              <span className="hover:text-gray-300 cursor-pointer">नियम व शर्तें</span>
-              <span className="hover:text-gray-300 cursor-pointer">गोपनीयता नीति</span>
-              <span className="hover:text-gray-300 cursor-pointer">अस्वीकरण (Disclaimer)</span>
+              <span
+                onClick={() => {
+                  scrollToSection('cricket-section');
+                  showToast('भारतीय प्रेस परिषद (PCI) डिजिटल मीडिया आचार संहिता 2021 का अनुपालन सक्रिय है');
+                }}
+                className="hover:text-gray-300 cursor-pointer"
+              >
+                भारतीय प्रेस संहिता
+              </span>
+              <span
+                onClick={() => showToast('डीडीएन प्राइम न्यूज़: सभी नियम व शर्तें पोर्टल पर लागू हैं')}
+                className="hover:text-gray-300 cursor-pointer"
+              >
+                नियम व शर्तें
+              </span>
+              <span
+                onClick={() => showToast('गोपनीयता नीति: उपयोगकर्ता डेटा पूर्णतः सुरक्षित एवं एन्क्रिप्टेड है')}
+                className="hover:text-gray-300 cursor-pointer"
+              >
+                गोपनीयता नीति
+              </span>
+              <span
+                onClick={() => showToast('अस्वीकरण: पोर्टल पर प्रकाशित समाचार संबंधित संवाददाताओं व स्रोतों के आधार पर सत्यापित हैं')}
+                className="hover:text-gray-300 cursor-pointer"
+              >
+                अस्वीकरण (Disclaimer)
+              </span>
             </div>
           </div>
         </div>

@@ -18,9 +18,20 @@ export const AdPlacementSlot: React.FC<AdPlacementSlotProps> = ({
   onBookAdClick,
 }) => {
   // Try to find matching ad from the uploaded ads list
-  const matchingAd = adList.find(
-    (a) => a.position === placementKey || (placementKey.startsWith('article') && a.position === 'inline')
-  );
+  const matchingAd = adList.find((a) => {
+    if (!a.active) return false;
+    const aPlacement = (a.placement || (a as any).position || '').toLowerCase();
+    const key = placementKey.toLowerCase();
+
+    if (aPlacement === key) return true;
+    if (key === 'header' && (aPlacement === 'header_top' || aPlacement === 'header')) return true;
+    if (key === 'inline' && (aPlacement === 'inline_content' || aPlacement === 'inline')) return true;
+    if (key.startsWith('article_') && (aPlacement === 'inline_content' || aPlacement === 'inline' || aPlacement === key)) return true;
+    if (key === 'feed_native' && (aPlacement === 'inline_content' || aPlacement === 'feed')) return true;
+    if (key === 'district_local' && (aPlacement === 'sidebar' || aPlacement === 'district')) return true;
+
+    return false;
+  });
 
   if (matchingAd && matchingAd.imageUrl) {
     return (
@@ -70,7 +81,7 @@ export const AdPlacementSlot: React.FC<AdPlacementSlotProps> = ({
       case 'article_top':
         return {
           title: 'प्रीमियम न्यूज़ स्पॉन्सरशिप स्लॉट (Top Article Ad)',
-          sub: 'हर खबर खुलने पर सबसे पहले आपका विज्ञापन दिखेगा',
+          sub: 'हर खबर खुलने पर सबसे पहले पाठकों को आपका विज्ञापन दिखेगा',
           size: 'Full Width Premium Banner',
           bg: 'from-red-500/10 via-rose-500/10 to-orange-500/10',
           border: 'border-red-200',
@@ -82,6 +93,14 @@ export const AdPlacementSlot: React.FC<AdPlacementSlotProps> = ({
           size: 'Responsive Banner',
           bg: 'from-blue-500/10 via-indigo-500/10 to-purple-500/10',
           border: 'border-blue-200',
+        };
+      case 'inline':
+        return {
+          title: 'समाचार इन-लाइन विज्ञापन स्लॉट (Article In-Text Ad)',
+          sub: 'खबर के मुख्य विवरण के बीच सर्वाधिक ध्यान आकर्षित करने वाला विज्ञापन स्थान',
+          size: 'In-Article Responsive Ad',
+          bg: 'from-orange-500/10 via-amber-500/10 to-yellow-500/10',
+          border: 'border-orange-200',
         };
       case 'feed_native':
         return {
@@ -139,12 +158,13 @@ export const AdPlacementSlot: React.FC<AdPlacementSlotProps> = ({
 
         <div className="flex items-center space-x-2 flex-shrink-0">
           <a
-            href="tel:+919876543210"
+            href="tel:+919341050287"
             className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-gray-300 hover:border-gray-400 text-gray-800 rounded-lg text-xs font-bold transition shadow-xs"
             title="विज्ञापन विभाग से कॉल पर बात करें"
           >
             <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">कॉल करें</span>
+            <span className="hidden sm:inline">कॉल: +91 9341050287</span>
+            <span className="sm:hidden">कॉल करें</span>
           </a>
 
           <a

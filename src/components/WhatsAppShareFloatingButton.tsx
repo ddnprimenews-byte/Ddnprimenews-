@@ -6,6 +6,7 @@ interface WhatsAppShareFloatingButtonProps {
   summary?: string;
   category?: string;
   district?: string;
+  articleId?: string;
 }
 
 export const WhatsAppShareFloatingButton: React.FC<WhatsAppShareFloatingButtonProps> = ({
@@ -13,12 +14,19 @@ export const WhatsAppShareFloatingButton: React.FC<WhatsAppShareFloatingButtonPr
   summary,
   category,
   district,
+  articleId,
 }) => {
   const [copied, setCopied] = useState(false);
 
-  // Generate formatted WhatsApp message text
+  // Generate formatted WhatsApp message text with direct workable link
   const getWhatsAppShareUrl = () => {
-    const currentUrl = window.location.href;
+    // Determine public canonical URL: prefer origin + article query param or hash so recipient opens directly
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    const directUrl = articleId 
+      ? `${origin}${pathname}#article-${articleId}`
+      : window.location.href;
+
     const districtText = district ? `[${district}] ` : '';
     const categoryText = category ? `[${category}] ` : '';
     
@@ -31,7 +39,7 @@ export const WhatsAppShareFloatingButton: React.FC<WhatsAppShareFloatingButtonPr
       `🔴 *DDN PRIME NEWS*\n` +
       `📰 *${districtText}${categoryText}${title}*` +
       summarySnippet +
-      `\n\n👉 पूरी खबर पढ़ने के लिए लिंक पर क्लिक करें:\n${currentUrl}\n\n` +
+      `\n\n👉 पूरी खबर पढ़ने के लिए इस लिंक पर क्लिक करें:\n${directUrl}\n\n` +
       `📲 निष्पक्ष व सटीक पत्रकारिता के लिए DDN Prime News से जुड़े रहें।`;
 
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;

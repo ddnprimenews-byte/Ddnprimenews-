@@ -20,6 +20,9 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { ReporterIdCard } from './ReporterIdCard';
+import { ReporterAuthorizationLetter } from './ReporterAuthorizationLetter';
+import { CircularLogo } from './CircularLogo';
+import { PhotoUploadHelper } from './PhotoUploadHelper';
 import { MediaEmbed } from './MediaEmbed';
 import {
   LayoutDashboard,
@@ -137,13 +140,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Preview ID Card Modal State
+  // Preview ID Card & Authorization Letter Modal State
   const [previewReporter, setPreviewReporter] = useState<ReporterApplication | null>(null);
+  const [previewAuthLetter, setPreviewAuthLetter] = useState<ReporterApplication | null>(null);
 
   // AI News Generator State
   const [aiTopic, setAiTopic] = useState('');
   const [aiDistrict, setAiDistrict] = useState('पटना (Patna)');
   const [aiCategory, setAiCategory] = useState('बिहार एक्सप्रेस');
+  const [aiCustomPhoto, setAiCustomPhoto] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiGeneratedStory, setAiGeneratedStory] = useState<any | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -169,6 +174,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [adPlacement, setAdPlacement] = useState<'header_top' | 'sidebar' | 'inline_content' | 'footer'>('header_top');
   const [adSubmitting, setAdSubmitting] = useState(false);
 
+  // Admin Edit News State (User Requested: रिपोर्टर का लगाया हुआ न्यूज हो या एडमिन का, वो न्यूज एडिट करने का राइट एडमिन को रहना चाहिए)
+  const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSubTitle, setEditSubTitle] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editDistrict, setEditDistrict] = useState('');
+  const [editBlock, setEditBlock] = useState('');
+  const [editImageUrl, setEditImageUrl] = useState('');
+  const [editIsBreaking, setEditIsBreaking] = useState(false);
+  const [editStatus, setEditStatus] = useState<'published' | 'pending' | 'rejected'>('published');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const handleStartEditNews = (item: NewsItem) => {
+    setEditingNews(item);
+    setEditTitle(item.title || '');
+    setEditSubTitle(item.subTitle || '');
+    setEditSummary(item.summary || '');
+    setEditContent(item.content || '');
+    setEditCategory(item.category || 'बिहार एक्सप्रेस');
+    setEditDistrict(item.district || 'पटना (Patna)');
+    setEditBlock(item.block || '');
+    setEditImageUrl(item.imageUrl || '');
+    setEditIsBreaking(Boolean(item.isBreaking));
+    setEditStatus(item.status || 'published');
+  };
+
+  const handleSaveEditNews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNews || !editTitle.trim() || !editContent.trim()) {
+      alert('शीर्षक और सामग्री अनिवार्य है');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await updateDoc(doc(db, 'news', editingNews.id), {
+        title: editTitle.trim(),
+        subTitle: editSubTitle.trim() || undefined,
+        summary: editSummary.trim() || editTitle.trim(),
+        content: editContent.trim(),
+        category: editCategory,
+        district: editDistrict,
+        block: editBlock.trim() || undefined,
+        imageUrl: editImageUrl.trim() || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1000&auto=format&fit=crop&q=80',
+        isBreaking: editIsBreaking,
+        status: editStatus,
+        updatedAt: Date.now(),
+      });
+      if (onSuccessToast) onSuccessToast('समाचार सफलतापूर्वक अपडेट/संपादित कर दिया गया!');
+      setEditingNews(null);
+      onRefreshData();
+    } catch (err: any) {
+      alert('संपादित करने में त्रुटि: ' + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   // Analytics Computation
   const totalNews = newsList.length;
   const publishedNews = newsList.filter((n) => n.status === 'published').length;
@@ -191,12 +255,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         100 + Math.random() * 900
       )}`;
       const designation = 'अधिकृत जिला संवाददाता (Authorized Press Correspondent)';
+      // Issue a formal password for the reporter
+      const formalPassword = `DDN@${Math.floor(1000 + Math.random() * 9000)}`;
 
       // 1. Update reporter application in reporter_applications & pending_reporters
       await updateDoc(doc(db, 'reporter_applications', rep.id), {
         status: 'approved',
         reporterId: generatedId,
         designation,
+        formalPassword,
         approvedAt: Date.now(),
       });
 
@@ -213,12 +280,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         block: rep.block,
         photoUrl: rep.photoUrl,
         fatherName: rep.fatherName,
+        formalPassword,
         createdAt: rep.appliedAt,
         active: true,
       } as UserProfile);
 
       if (onSuccessToast) {
-        onSuccessToast(`पत्रकार ${rep.fullName} को स्वीकृत किया गया! आईडी: ${generatedId}`);
+        onSuccessToast(`पत्रकार ${rep.fullName} को स्वीकृत किया गया! आईडी: ${generatedId} | लॉगिन पासवर्ड: ${formalPassword}`);
       }
       onRefreshData();
     } catch (err: any) {
@@ -266,7 +334,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         throw new Error(data.error || 'Gemini API call failed');
       }
 
-      setAiGeneratedStory(data.data);
+      // If user uploaded/provided a custom photo, prioritize it; otherwise AI generated/default photo is used
+      const storyData = data.data;
+      if (aiCustomPhoto.trim()) {
+        storyData.imageUrl = aiCustomPhoto.trim();
+      }
+
+      setAiGeneratedStory(storyData);
     } catch (err: any) {
       console.error('AI Generation error:', err);
       setAiError(err.message || 'AI समाचार तैयार करने में विफल रहा।');
@@ -288,6 +362,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         district: aiGeneratedStory.district || aiDistrict,
         imageUrl: aiGeneratedStory.imageUrl || 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=1000&auto=format&fit=crop&q=80',
         imagePrompt: aiGeneratedStory.imagePrompt,
+        suggestedTags: aiGeneratedStory.suggestedTags || [],
         authorName: 'DDN AI Bureau Editor',
         authorRole: 'ai',
         isBreaking: false,
@@ -426,18 +501,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
       {/* Top Bar */}
       <div className="bg-gray-900 rounded-2xl p-6 text-white shadow-xl mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs font-bold text-red-400 uppercase tracking-widest">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-            <span>DDN Prime News Command & Moderation Center</span>
+        <div className="flex items-center space-x-4">
+          <CircularLogo size={58} />
+          <div>
+            <div className="flex items-center space-x-2 text-xs font-bold text-red-400 uppercase tracking-widest">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              <span>DDN Prime News Command & Moderation Center</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black mt-1">एडमिन कंट्रोल पैनल (Admin Portal)</h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              प्रबंधन, एआई पोस्ट जनरेटर, रिपोर्टर सत्यापन एवं विज्ञापन नियंत्रण
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black mt-1">एडमिन कंट्रोल पैनल (Admin Portal)</h1>
-          <p className="text-xs text-gray-400 mt-0.5">
-            प्रबंधन, एआई पोस्ट जनरेटर, रिपोर्टर सत्यापन एवं विज्ञापन नियंत्रण
-          </p>
         </div>
 
         <div className="flex items-center space-x-3">
+          {/* Public Portal Live Link Copy & Open */}
+          <button
+            onClick={() => {
+              const liveUrl = window.location.origin;
+              navigator.clipboard.writeText(liveUrl);
+              if (onSuccessToast) onSuccessToast('पब्लिक पोर्टल का लाइव लिंक कॉपी किया गया!');
+            }}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-yellow-300 rounded-lg text-xs font-bold transition border border-gray-700 shadow"
+            title="लाइव पब्लिक पोर्टल लिंक कॉपी करें"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>पब्लिक लिंक कॉपी करें</span>
+          </button>
+
           <button
             onClick={onLogout}
             className="flex items-center space-x-2 px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition shadow"
@@ -751,6 +843,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           <div className="font-mono font-bold text-red-700 mt-1">
                             {rep.reporterId}
                           </div>
+                          {rep.formalPassword && (
+                            <div className="text-[10px] text-gray-500 font-mono">
+                              पासवर्ड: <span className="font-bold text-gray-700">{rep.formalPassword}</span>
+                            </div>
+                          )}
                         </div>
                       ) : rep.status === 'rejected' ? (
                         <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
@@ -763,7 +860,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       )}
                     </td>
                     <td className="p-3 text-right">
-                      <div className="flex items-center justify-end space-x-2">
+                      <div className="flex items-center justify-end space-x-1.5 flex-wrap gap-1">
                         {rep.status === 'pending' ? (
                           <>
                             <button
@@ -784,13 +881,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                             </button>
                           </>
                         ) : rep.status === 'approved' ? (
-                          <button
-                            onClick={() => setPreviewReporter(rep)}
-                            className="px-2.5 py-1.5 bg-gray-900 hover:bg-black text-white rounded font-bold text-xs flex items-center space-x-1"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>आईडी कार्ड देखें</span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => setPreviewReporter(rep)}
+                              className="px-2.5 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded font-bold text-xs flex items-center space-x-1"
+                              title="डिजिटल प्रेस आईडी कार्ड देखें"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>आईडी कार्ड</span>
+                            </button>
+                            <button
+                              onClick={() => setPreviewAuthLetter(rep)}
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-gray-950 rounded font-black text-xs flex items-center space-x-1"
+                              title="डिजिटल मोहरयुक्त ऑथराइजेशन लेटर देखें"
+                            >
+                              <FileCheck className="w-3.5 h-3.5" />
+                              <span>ऑथराइजेशन</span>
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     </td>
@@ -867,6 +975,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Custom Photo Upload for AI News (User Requested: एआई से जो न्यूज़ लिखा जा रहा है, वहां भी एक कॉलम फोटो अपलोड का दे दीजिए। अगर फोटो अपलोड नहीं करता है तो उस न्यूज़ के हिसाब से फोटो जनरेट करना एआई का काम रहेगा) */}
+            <div className="bg-white p-3.5 rounded-xl border border-purple-200">
+              <PhotoUploadHelper
+                value={aiCustomPhoto}
+                onChange={setAiCustomPhoto}
+                topicOrCategory={`${aiTopic} ${aiCategory}`}
+                label="फोटो अपलोड या ऑटो-लिंक (वैकल्पिक - यदि खाली छोड़ेंगे तो AI स्वतः प्रासंगिक फोटो जनरेट करेगा)"
+                placeholder="फोटो लिंक (URL) डालें या 'फोटो चुनें' / 'फोटो फोल्डर' से लोड करें..."
+                allowAiGeneration={true}
+              />
             </div>
 
             {aiError && (
@@ -1050,24 +1170,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
 
-            {/* Featured Image */}
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                मुख्य तस्वीर URL (Featured Image URL)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-                  <ImageIcon className="w-4 h-4" />
-                </div>
-                <input
-                  type="url"
-                  value={manualImageUrl}
-                  onChange={(e) => setManualImageUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/... या इमेज यूआरएल"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm"
-                />
-              </div>
-            </div>
+            {/* Featured Image with Auto Link Generator & Folder Integration */}
+            <PhotoUploadHelper
+              value={manualImageUrl}
+              onChange={setManualImageUrl}
+              topicOrCategory={`${manualHeadline} ${manualCategory}`}
+              label="मुख्य तस्वीर फोटो (Auto Link Generator / Upload from Device / Folder)"
+              placeholder="फोटो लिंक (URL), या 'फोटो चुनें' / 'फोटो फोल्डर' से डायरेक्ट जोड़ें..."
+              allowAiGeneration={true}
+            />
 
             {/* Rich Media Embed Input */}
             <div>
@@ -1192,10 +1303,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-2 self-end md:self-center flex-shrink-0">
+                  <button
+                    onClick={() => handleStartEditNews(item)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1 shadow-xs transition"
+                    title="एडमिन द्वारा समाचार संपादित करें"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>एडिट करें (Edit)</span>
+                  </button>
+
                   {item.status === 'pending' && (
                     <button
                       onClick={() => handleModerationPublish(item.id)}
-                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1"
+                      className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center space-x-1 shadow-xs"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>स्वीकृत व लाइव करें</span>
@@ -1640,7 +1760,204 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
-            <ReporterIdCard reporter={previewReporter} showPrintButton={true} />
+            <ReporterIdCard reporter={previewReporter} showPrintButton={true} isAuthenticated={true} />
+          </div>
+        </div>
+      )}
+
+      {/* Authorization Letter Preview Modal */}
+      {previewAuthLetter && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 sm:p-8 max-w-4xl w-full relative max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setPreviewAuthLetter(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-2 rounded-full bg-gray-100 print:hidden z-20"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <ReporterAuthorizationLetter reporter={previewAuthLetter} showPrintButton={true} isAuthenticated={true} />
+          </div>
+        </div>
+      )}
+
+      {/* Edit News Modal (User Requested: एडमिन को चाहे रिपोर्टर का लगाया हुआ न्यूज हो या एडमिन का स्वतः किया हुआ न्यूज हो, वो न्यूज एडिट करने का राइट एडमिन को रहना चाहिए) */}
+      {editingNews && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-3xl w-full relative max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl">
+            <button
+              onClick={() => setEditingNews(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-2 rounded-full bg-gray-100 transition z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-5 pb-3 border-b border-gray-200">
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 mb-2">
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>एडमिन स्पेशल एडिटिंग राइट्स (Admin News Editor)</span>
+              </div>
+              <h2 className="text-xl font-black text-gray-900">समाचार संपादित करें</h2>
+              <p className="text-xs text-gray-500">
+                मूल लेखक: <strong>{editingNews.authorName}</strong> ({editingNews.authorRole}) • आईडी: {editingNews.id}
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveEditNews} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                  मुख्य शीर्षक (Headline) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                  उप-शीर्षक (Sub-headline)
+                </label>
+                <input
+                  type="text"
+                  value={editSubTitle}
+                  onChange={(e) => setEditSubTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    श्रेणी (Category)
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    जिला (District)
+                  </label>
+                  <select
+                    value={editDistrict}
+                    onChange={(e) => setEditDistrict(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white"
+                  >
+                    {BIHAR_DISTRICTS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    प्रखंड (Block)
+                  </label>
+                  <input
+                    type="text"
+                    value={editBlock}
+                    onChange={(e) => setEditBlock(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs"
+                    placeholder="उदा. सदर"
+                  />
+                </div>
+              </div>
+
+              {/* Photo Upload & Auto Link Helper */}
+              <PhotoUploadHelper
+                value={editImageUrl}
+                onChange={setEditImageUrl}
+                topicOrCategory={`${editTitle} ${editCategory}`}
+                label="फोटो लिंक व फोल्डर (Auto Link / Replace Image)"
+                placeholder="फोटो लिंक (URL) डालें या 'फोटो चुनें' / 'फोटो फोल्डर' से लोड करें..."
+                allowAiGeneration={true}
+              />
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                  संक्षिप्त सारांश (Summary)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editSummary}
+                  onChange={(e) => setEditSummary(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                  विस्तृत समाचार सामग्री (Content) *
+                </label>
+                <textarea
+                  rows={7}
+                  required
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                    प्रकाशन स्थिति (Status)
+                  </label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs bg-white font-bold"
+                  >
+                    <option value="published">लाइव प्रकाशित (Published)</option>
+                    <option value="pending">समीक्षाधीन (Pending Review)</option>
+                    <option value="rejected">अस्वीकृत (Rejected)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center space-x-2 text-xs font-bold text-red-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsBreaking}
+                      onChange={(e) => setEditIsBreaking(e.target.checked)}
+                      className="rounded text-red-600"
+                    />
+                    <span>ब्रेकिंग न्यूज़ टिकर में दिखाएं</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingNews(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-700 hover:bg-gray-100"
+                >
+                  रद्द करें
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-md transition disabled:opacity-50"
+                >
+                  {savingEdit ? 'अपडेट हो रहा है...' : 'परिवर्तन सेव करें (Save Changes)'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
